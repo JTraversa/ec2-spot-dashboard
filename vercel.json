@@ -1,4 +1,7 @@
 {
+  "redirects": [
+    { "source": "/", "destination": "/aws", "permanent": false }
+  ],
   "rewrites": [
     { "source": "/aws", "destination": "/index.html" },
     { "source": "/aws/", "destination": "/index.html" },
