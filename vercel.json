@@ -1,0 +1,7 @@
+{
+  "rewrites": [
+    { "source": "/aws", "destination": "/index.html" },
+    { "source": "/aws/", "destination": "/index.html" },
+    { "source": "/aws/:path*", "destination": "/:path*" }
+  ]
+}
