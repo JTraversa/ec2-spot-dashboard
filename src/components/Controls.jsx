@@ -5,7 +5,7 @@ const RANGES = [
   { label: '1M', range: 30, granularity: 'daily' },
   { label: '3M', range: 90, granularity: 'daily' },
   { label: '1Y', range: 365, granularity: 'weekly' },
-  { label: 'ALL', range: 'all', granularity: 'monthly' },
+  { label: 'ALL', range: 'all', granularity: 'weekly' },
 ]
 
 const INDICATORS = [
@@ -21,7 +21,8 @@ export default function Controls({
   timeRange, setTimeRange,
   granularity, setGranularity,
   activeIndicators, toggleIndicator,
-  exportData, currentInstance,
+  exportData, currentInstance, isS3,
+
 }) {
   return (
     <div className="controls">
@@ -35,53 +36,55 @@ export default function Controls({
       </div>
 
       <div className="control-group">
-        <label>Chart Type</label>
-        <div className="btn-group">
-          {['line', 'area'].map(t => (
-            <button key={t} className={chartType === t ? 'active' : ''} onClick={() => setChartType(t)}>
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
-          ))}
-        </div>
-      </div>
+            <label>Chart Type</label>
+            <div className="btn-group">
+              {['line', 'area'].map(t => (
+                <button key={t} className={chartType === t ? 'active' : ''} onClick={() => setChartType(t)}>
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
 
-      <div className="control-group">
-        <label>Time Range</label>
-        <div className="btn-group">
-          {RANGES.map(r => (
-            <button
-              key={r.label}
-              className={timeRange === r.range ? 'active' : ''}
-              onClick={() => { setTimeRange(r.range); setGranularity(r.granularity) }}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
-      </div>
+          <div className="control-group">
+            <label>Time Range</label>
+            <div className="btn-group">
+              {RANGES.map(r => (
+                <button
+                  key={r.label}
+                  className={timeRange === r.range ? 'active' : ''}
+                  disabled={isS3}
+                  onClick={() => { setTimeRange(r.range); setGranularity(r.granularity) }}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-      <div className="control-group">
-        <label>Indicators</label>
-        <div className="btn-group">
-          {INDICATORS.map(ind => (
-            <button
-              key={ind.key}
-              className={activeIndicators.has(ind.key) ? 'active' : ''}
-              onClick={() => toggleIndicator(ind.key)}
-            >
-              {ind.label}
-            </button>
-          ))}
-        </div>
-      </div>
+          <div className="control-group">
+            <label>Indicators</label>
+            <div className="btn-group">
+              {INDICATORS.map(ind => (
+                <button
+                  key={ind.key}
+                  className={activeIndicators.has(ind.key) ? 'active' : ''}
+                  disabled={isS3}
+                  onClick={() => toggleIndicator(ind.key)}
+                >
+                  {ind.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-      <div className="control-group">
-        <label>Export</label>
-        <div className="btn-group">
-          <button onClick={() => exportCSV(exportData(), currentInstance, region)}>CSV</button>
-          <button onClick={() => exportJSON(exportData(), currentInstance, region)}>JSON</button>
-        </div>
-      </div>
+          <div className="control-group">
+            <label>Export</label>
+            <div className="btn-group">
+              <button disabled={isS3} onClick={() => exportCSV(exportData(), currentInstance, region)}>CSV</button>
+              <button disabled={isS3} onClick={() => exportJSON(exportData(), currentInstance, region)}>JSON</button>
+            </div>
+          </div>
     </div>
   )
 }

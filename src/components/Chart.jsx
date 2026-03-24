@@ -8,10 +8,31 @@ const INDICATOR_COLORS = {
   sma90: '#8b5cf6',
 }
 
-export default function Chart({ data, chartType, activeIndicators, granularity, instance, region }) {
+const S3_COLORS = {
+  'Standard': '#2563eb',
+  'Standard-IA': '#f59e0b',
+  'One Zone-IA': '#ec4899',
+  'Glacier': '#10b981',
+  'Glacier Deep Archive': '#06b6d4',
+  'Glacier Instant Retrieval': '#8b5cf6',
+  'Intelligent-Tiering FA': '#f97316',
+  'Reduced Redundancy': '#6b7280',
+}
+
+export default function Chart({ data, s3Data, chartType, activeIndicators, granularity, instance, region, onDemandData, riData, isS3 }) {
   const containerRef = useRef(null)
   const chartRef = useRef(null)
   const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'dark')
+  const [hiddenS3Classes, setHiddenS3Classes] = useState(new Set())
+
+  const toggleS3Class = (cls) => {
+    setHiddenS3Classes(prev => {
+      const next = new Set(prev)
+      if (next.has(cls)) next.delete(cls)
+      else next.add(cls)
+      return next
+    })
+  }
 
   useEffect(() => {
     const observer = new MutationObserver(() => {
@@ -22,7 +43,8 @@ export default function Chart({ data, chartType, activeIndicators, granularity, 
   }, [])
 
   useEffect(() => {
-    if (!containerRef.current || !data || data.length === 0) return
+    const hasS3 = isS3 && s3Data && Object.keys(s3Data).length > 0
+    if (!containerRef.current || (!hasS3 && (!data || data.length === 0))) return
 
     if (chartRef.current) {
       chartRef.current.remove()
@@ -66,6 +88,52 @@ export default function Chart({ data, chartType, activeIndicators, granularity, 
     })
 
     chartRef.current = chart
+
+    // S3 mode: one line per storage class
+    if (isS3 && s3Data && typeof s3Data === 'object') {
+      chart.applyOptions({
+        rightPriceScale: { minMove: 0.001 },
+      })
+      const entries = Object.entries(s3Data)
+      for (let i = 0; i < entries.length; i++) {
+        const [cls, points] = entries[i]
+        if (!points || points.length === 0) continue
+        if (hiddenS3Classes.has(cls)) continue
+        const color = S3_COLORS[cls] || '#9ca3af'
+        const priceFormat = { type: 'price', precision: 3, minMove: 0.001 }
+
+        if (chartType === 'area' && entries.length === 1) {
+          chart.addSeries(AreaSeries, {
+            lineColor: color,
+            topColor: color.replace(')', ', 0.3)').replace('rgb', 'rgba'),
+            bottomColor: 'transparent',
+            lineWidth: 2,
+            priceLineVisible: false,
+            lastValueVisible: true,
+            title: cls,
+            priceFormat,
+          }).setData(points)
+        } else {
+          chart.addSeries(LineSeries, {
+            color,
+            lineWidth: 2,
+            priceLineVisible: false,
+            lastValueVisible: true,
+            title: cls,
+            priceFormat,
+          }).setData(points)
+        }
+      }
+      chart.timeScale().fitContent()
+
+      const ro = new ResizeObserver(() => {
+        if (containerRef.current) {
+          chart.applyOptions({ width: containerRef.current.clientWidth, height: containerRef.current.clientHeight })
+        }
+      })
+      ro.observe(containerRef.current)
+      return () => { ro.disconnect(); chart.remove(); chartRef.current = null }
+    }
 
     const linePoints = data.map(d => ({ time: d.date, value: d.avg }))
     const filled = fillTimeGaps(linePoints, granularity)
@@ -116,6 +184,24 @@ export default function Chart({ data, chartType, activeIndicators, granularity, 
       }
     }
 
+    // Reference price lines (on-demand, RI)
+    const refLineOpts = { lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: true }
+
+    if (Array.isArray(onDemandData) && onDemandData.length > 0) {
+      chart.addSeries(LineSeries, { ...refLineOpts, color: '#ef4444', lineWidth: 2, title: 'On-Demand' })
+        .setData(onDemandData)
+    }
+
+    if (riData && Array.isArray(riData.ri1yNoUpfront) && riData.ri1yNoUpfront.length > 0) {
+      chart.addSeries(LineSeries, { ...refLineOpts, color: '#f59e0b', title: '1yr RI' })
+        .setData(riData.ri1yNoUpfront)
+    }
+
+    if (riData && Array.isArray(riData.ri3yNoUpfront) && riData.ri3yNoUpfront.length > 0) {
+      chart.addSeries(LineSeries, { ...refLineOpts, color: '#10b981', title: '3yr RI' })
+        .setData(riData.ri3yNoUpfront)
+    }
+
     chart.timeScale().fitContent()
 
     const ro = new ResizeObserver(() => {
@@ -133,18 +219,34 @@ export default function Chart({ data, chartType, activeIndicators, granularity, 
       chart.remove()
       chartRef.current = null
     }
-  }, [data, chartType, activeIndicators, granularity, theme])
+  }, [data, s3Data, isS3, chartType, activeIndicators, granularity, theme, onDemandData, riData, hiddenS3Classes])
 
   return (
     <div className="chart-area">
-      <div className="y-axis-label">Spot Price (USD / hr)</div>
+      <div className="y-axis-label">{isS3 ? 'Price (USD / GB / mo)' : 'Price (USD / hr)'}</div>
       {instance && (
         <div className="chart-title">
-          <span className="instance-name">{instance}</span> &mdash; {region} &mdash; EC2 Spot Instance Avg. Hourly Rate (USD)
+          <span className="instance-name">{isS3 ? 'S3 Storage' : instance}</span> &mdash; {region} &mdash; {isS3 ? 'Price per GB per Month (USD)' : 'EC2 Hourly Rate (USD)'}
+        </div>
+      )}
+      {isS3 && s3Data && (
+        <div className="s3-legend">
+          {Object.keys(s3Data).map(cls => (
+            <div
+              key={cls}
+              className={`s3-legend-item ${hiddenS3Classes.has(cls) ? 'inactive' : 'active'}`}
+              onClick={() => toggleS3Class(cls)}
+            >
+              <div className="s3-legend-checkbox">
+                <div className="s3-legend-checkbox-inner" style={{ backgroundColor: S3_COLORS[cls] || '#9ca3af' }} />
+              </div>
+              {cls}
+            </div>
+          ))}
         </div>
       )}
       <div className="chart-container" ref={containerRef} />
-      {(!data || data.length === 0) && (
+      {(!data || data.length === 0) && (!s3Data || s3Data.length === 0) && (
         <div className="no-data-msg">
           {instance ? 'No data for this instance type in the selected time range' : 'Select an instance type'}
         </div>

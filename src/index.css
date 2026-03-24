@@ -197,7 +197,8 @@ select {
   transition: all 0.3s cubic-bezier(0.55, 0, 0.1, 1);
 }
 .btn-group button.active { background: var(--accent); border-color: var(--accent); color: white; }
-.btn-group button:hover:not(.active) { border-color: var(--text-secondary); color: var(--text-primary); }
+.btn-group button:hover:not(.active):not(:disabled) { border-color: var(--text-secondary); color: var(--text-primary); }
+.btn-group button:disabled { opacity: 0.3; cursor: not-allowed; }
 
 /* Main Layout */
 .main { display: flex; flex: 1; min-height: 0; border-left: 1px solid var(--border); }
@@ -273,6 +274,57 @@ select {
   color: var(--text-secondary);
   font-size: 16px;
   pointer-events: none;
+}
+
+.s3-legend {
+  position: absolute;
+  top: 8px;
+  right: 70px;
+  z-index: 10;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.s3-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  user-select: none;
+}
+
+.s3-legend-item.active {
+  opacity: 1;
+}
+
+.s3-legend-item.inactive {
+  opacity: 0.35;
+}
+
+.s3-legend-checkbox {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  border: 1.5px solid var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.s3-legend-checkbox-inner {
+  width: 8px;
+  height: 8px;
+  border-radius: 1px;
+}
+
+.s3-legend-item.inactive .s3-legend-checkbox-inner {
+  background-color: transparent !important;
 }
 
 /* Footer */

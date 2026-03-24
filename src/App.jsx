@@ -11,7 +11,7 @@ import { useSpotData } from './hooks/useSpotData'
 const GRANULARITY_LABELS = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' }
 
 function App() {
-  const { meta, loading, loadRegion, getInstanceData } = useSpotData()
+  const { meta, loading, loadRegion, getInstanceData, getOnDemandData, getRIData, getS3Data, getS3Classes } = useSpotData()
 
   const [region, setRegion] = useState('us-east-1')
   const [instance, setInstance] = useState(null)
@@ -20,6 +20,9 @@ function App() {
   const [granularity, setGranularity] = useState('daily')
   const [activeIndicators, setActiveIndicators] = useState(new Set())
   const [regionLoaded, setRegionLoaded] = useState(false)
+
+  // Track whether the selected item is S3
+  const isS3 = instance === 's3:all'
 
   useEffect(() => {
     if (!loading) {
@@ -51,7 +54,43 @@ function App() {
     })
   }, [])
 
+  // S3 chart data — all classes as a map
+  const s3ChartData = useMemo(() => {
+    if (!isS3 || !regionLoaded) return {}
+    const classes = getS3Classes(region)
+    const result = {}
+    for (const cls of classes) {
+      const data = getS3Data(region, cls)
+      if (data.length > 0) result[cls] = data
+    }
+    return result
+  }, [isS3, region, regionLoaded])
+
+  // EC2 chart data
   const { chartData, stats, usedGranularity } = useMemo(() => {
+    if (isS3) {
+      const stdData = s3ChartData['Standard'] || []
+      if (stdData.length === 0) return { chartData: [], stats: {}, usedGranularity: 'monthly' }
+      const latest = stdData[stdData.length - 1]
+      const first = stdData[0]
+      const change = ((latest.value - first.value) / first.value * 100)
+      const changeClass = change >= 0 ? 'up' : 'down'
+      const icon = change >= 0 ? '\u25B2' : '\u25BC'
+      const allVals = stdData.map(d => d.value)
+      const totalClasses = Object.keys(s3ChartData).length
+      return {
+        chartData: [],
+        usedGranularity: 'monthly',
+        stats: {
+          price: `$${latest.value.toFixed(4)}/GB`,
+          change: `${icon} ${Math.abs(change).toFixed(1)}%`,
+          changeClass,
+          range: `$${Math.min(...allVals).toFixed(4)} — $${Math.max(...allVals).toFixed(4)}`,
+          granularity: `${totalClasses} storage classes`,
+        },
+      }
+    }
+
     if (!instance || !regionLoaded) return { chartData: [], stats: {}, usedGranularity: granularity }
 
     const result = getInstanceData(instance, region, granularity)
@@ -87,7 +126,7 @@ function App() {
         granularity: `${GRANULARITY_LABELS[result.actualGranularity]} (${data.length} pts)`,
       },
     }
-  }, [instance, region, granularity, timeRange, regionLoaded, getInstanceData])
+  }, [isS3, s3ChartData, instance, region, granularity, timeRange, regionLoaded, getInstanceData])
 
   const getExportData = useCallback(() => {
     return chartData.map(d => ({
@@ -96,7 +135,23 @@ function App() {
     }))
   }, [chartData, region])
 
+  const onDemandData = useMemo(() => {
+    if (isS3 || !instance || !regionLoaded) return []
+    return getOnDemandData(instance, region)
+  }, [isS3, instance, region, regionLoaded])
+
+  const riDataMemo = useMemo(() => {
+    if (isS3 || !instance || !regionLoaded) return null
+    return {
+      ri1yNoUpfront: getRIData(instance, region, 'ri_1y_no_upfront_standard'),
+      ri3yNoUpfront: getRIData(instance, region, 'ri_3y_no_upfront_standard'),
+    }
+  }, [isS3, instance, region, regionLoaded])
+
+  // Build sidebar items: EC2 instances + S3 storage classes
   const instances = meta[region] || []
+  const s3Classes = regionLoaded ? getS3Classes(region) : []
+  const s3Items = s3Classes.map(cls => ({ t: `s3:${cls}`, p: 0, isS3: true, label: cls }))
 
   return (
     <div className="app">
@@ -110,16 +165,26 @@ function App() {
         granularity={granularity} setGranularity={setGranularity}
         activeIndicators={activeIndicators} toggleIndicator={toggleIndicator}
         exportData={getExportData} currentInstance={instance}
+        isS3={isS3}
       />
       <div className="main">
-        <Sidebar instances={instances} currentInstance={instance} onSelect={setInstance} />
+        <Sidebar
+          instances={instances}
+          s3Items={s3Items}
+          currentInstance={instance}
+          onSelect={setInstance}
+        />
         <Chart
-          data={chartData}
+          data={isS3 ? null : chartData}
+          s3Data={isS3 ? s3ChartData : null}
           chartType={chartType}
           activeIndicators={activeIndicators}
           granularity={usedGranularity}
-          instance={instance}
+          instance={isS3 ? 'S3' : instance}
           region={region}
+          onDemandData={onDemandData}
+          riData={riDataMemo}
+          isS3={isS3}
         />
       </div>
       <Footer />

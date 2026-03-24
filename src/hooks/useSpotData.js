@@ -21,6 +21,22 @@ export function useSpotData() {
     cache.current[`${region}/daily`] = d
     cache.current[`${region}/weekly`] = w
     cache.current[`${region}/monthly`] = m
+
+    // Load on-demand, RI, and S3 data (optional, may not exist)
+    try {
+      const [od, ri, s3] = await Promise.all([
+        fetch(`${BASE}/${region}/ondemand.json`).then(r => r.ok ? r.json() : []),
+        fetch(`${BASE}/${region}/ri.json`).then(r => r.ok ? r.json() : []),
+        fetch(`${BASE}/${region}/s3.json`).then(r => r.ok ? r.json() : []),
+      ])
+      cache.current[`${region}/ondemand`] = od
+      cache.current[`${region}/ri`] = ri
+      cache.current[`${region}/s3`] = s3
+    } catch {
+      cache.current[`${region}/ondemand`] = []
+      cache.current[`${region}/ri`] = []
+      cache.current[`${region}/s3`] = []
+    }
   }
 
   function getData(region, gran) {
@@ -42,5 +58,46 @@ export function useSpotData() {
     return { data: [], actualGranularity: granularity }
   }
 
-  return { meta, loading, loadRegion, getInstanceData }
+  function dedupeByDate(arr) {
+    const seen = new Set()
+    return arr.filter(d => {
+      if (seen.has(d.time)) return false
+      seen.add(d.time)
+      return true
+    })
+  }
+
+  function getOnDemandData(inst, region) {
+    const data = cache.current[`${region}/ondemand`] || []
+    const mapped = data
+      .filter(d => d.instance_type === inst)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(d => ({ time: d.date, value: d.price }))
+    return dedupeByDate(mapped)
+  }
+
+  function getRIData(inst, region, riType) {
+    const data = cache.current[`${region}/ri`] || []
+    const mapped = data
+      .filter(d => d.instance_type === inst && d.ri_type === riType)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(d => ({ time: d.date, value: d.price }))
+    return dedupeByDate(mapped)
+  }
+
+  function getS3Data(region, storageClass) {
+    const data = cache.current[`${region}/s3`] || []
+    const mapped = data
+      .filter(d => d.storage_class === storageClass)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(d => ({ time: d.date, value: d.price }))
+    return dedupeByDate(mapped)
+  }
+
+  function getS3Classes(region) {
+    const data = cache.current[`${region}/s3`] || []
+    return [...new Set(data.map(d => d.storage_class))].sort()
+  }
+
+  return { meta, loading, loadRegion, getInstanceData, getOnDemandData, getRIData, getS3Data, getS3Classes }
 }

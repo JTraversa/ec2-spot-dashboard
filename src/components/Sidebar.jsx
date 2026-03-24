@@ -6,7 +6,7 @@ const CATEGORIES = {
   'Storage Optimized': /^i[2-4]\./,
 }
 
-export default function Sidebar({ instances, currentInstance, onSelect }) {
+export default function Sidebar({ instances, s3Items = [], currentInstance, onSelect }) {
   const grouped = {}
   for (const [cat, regex] of Object.entries(CATEGORIES)) {
     const items = instances.filter(i => regex.test(i.t))
@@ -30,6 +30,18 @@ export default function Sidebar({ instances, currentInstance, onSelect }) {
           ))}
         </div>
       ))}
+
+      {s3Items.length > 0 && (
+        <div className="sidebar-section">
+          <h3>Storage</h3>
+          <div
+            className={`instance-item ${currentInstance === 's3:all' ? 'selected' : ''}`}
+            onClick={() => onSelect('s3:all')}
+          >
+            <span>S3 (all classes)</span>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
