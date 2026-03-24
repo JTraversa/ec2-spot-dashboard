@@ -24,18 +24,28 @@ export function useSpotData() {
 
     // Load on-demand, RI, and S3 data (optional, may not exist)
     try {
-      const [od, ri, s3] = await Promise.all([
+      const [od, ri, s3, lambda, rds] = await Promise.all([
         fetch(`${BASE}/${region}/ondemand.json`).then(r => r.ok ? r.json() : []),
         fetch(`${BASE}/${region}/ri.json`).then(r => r.ok ? r.json() : []),
         fetch(`${BASE}/${region}/s3.json`).then(r => r.ok ? r.json() : []),
+        fetch(`${BASE}/${region}/lambda.json`).then(r => r.ok ? r.json() : []),
+        fetch(`${BASE}/${region}/rds.json`).then(r => r.ok ? r.json() : []),
       ])
       cache.current[`${region}/ondemand`] = od
       cache.current[`${region}/ri`] = ri
       cache.current[`${region}/s3`] = s3
+      cache.current[`${region}/lambda`] = lambda
+      cache.current[`${region}/rds`] = rds
+
+      const storageComp = await fetch(`${BASE}/${region}/storage_comparison.json`).then(r => r.ok ? r.json() : {}).catch(() => ({}))
+      cache.current[`${region}/storage_comparison`] = storageComp
     } catch {
       cache.current[`${region}/ondemand`] = []
       cache.current[`${region}/ri`] = []
       cache.current[`${region}/s3`] = []
+      cache.current[`${region}/lambda`] = []
+      cache.current[`${region}/rds`] = []
+      cache.current[`${region}/storage_comparison`] = {}
     }
   }
 
@@ -99,5 +109,42 @@ export function useSpotData() {
     return [...new Set(data.map(d => d.storage_class))].sort()
   }
 
-  return { meta, loading, loadRegion, getInstanceData, getOnDemandData, getRIData, getS3Data, getS3Classes }
+  function getLambdaData(region, category) {
+    const data = cache.current[`${region}/lambda`] || []
+    const mapped = data
+      .filter(d => d.category === category)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(d => ({ time: d.date, value: d.price }))
+    return dedupeByDate(mapped)
+  }
+
+  function getLambdaCategories(region) {
+    const data = cache.current[`${region}/lambda`] || []
+    return [...new Set(data.map(d => d.category))].sort()
+  }
+
+  function getRDSData(region, instanceType, engine) {
+    const data = cache.current[`${region}/rds`] || []
+    const mapped = data
+      .filter(d => d.instance_type === instanceType && d.engine === engine)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(d => ({ time: d.date, value: d.price }))
+    return dedupeByDate(mapped)
+  }
+
+  function getRDSInstances(region) {
+    const data = cache.current[`${region}/rds`] || []
+    const types = [...new Set(data.map(d => d.instance_type))].sort()
+    return types.map(t => {
+      const latest = data.filter(d => d.instance_type === t && d.engine === 'MySQL')
+        .sort((a, b) => b.date.localeCompare(a.date))[0]
+      return { t, p: latest ? latest.price : 0 }
+    })
+  }
+
+  function getStorageComparison(region) {
+    return cache.current[`${region}/storage_comparison`] || {}
+  }
+
+  return { meta, loading, loadRegion, getInstanceData, getOnDemandData, getRIData, getS3Data, getS3Classes, getLambdaData, getLambdaCategories, getRDSData, getRDSInstances, getStorageComparison }
 }

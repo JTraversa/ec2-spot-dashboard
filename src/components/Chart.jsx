@@ -19,7 +19,23 @@ const S3_COLORS = {
   'Reduced Redundancy': '#6b7280',
 }
 
-export default function Chart({ data, s3Data, chartType, activeIndicators, granularity, instance, region, onDemandData, riData, isS3 }) {
+const LAMBDA_COLORS = {
+  'Compute (x86)': '#2563eb',
+  'Compute (ARM)': '#10b981',
+  'Requests': '#f59e0b',
+  'Provisioned Compute': '#ec4899',
+  'Provisioned Concurrency': '#8b5cf6',
+}
+
+const RDS_COLORS = {
+  'MySQL': '#2563eb',
+  'PostgreSQL': '#10b981',
+}
+
+const AZURE_COLOR = '#0078d4'
+const GCP_COLOR = '#34a853'
+
+export default function Chart({ data, s3Data, lambdaData, rdsData, chartType, activeIndicators, granularity, instance, region, onDemandData, riData, isS3, isLambda, isRDS, storageComparison }) {
   const containerRef = useRef(null)
   const chartRef = useRef(null)
   const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'dark')
@@ -44,7 +60,9 @@ export default function Chart({ data, s3Data, chartType, activeIndicators, granu
 
   useEffect(() => {
     const hasS3 = isS3 && s3Data && Object.keys(s3Data).length > 0
-    if (!containerRef.current || (!hasS3 && (!data || data.length === 0))) return
+    const hasLambda = isLambda && lambdaData && Object.keys(lambdaData).length > 0
+    const hasRDS = isRDS && rdsData && Object.keys(rdsData).length > 0
+    if (!containerRef.current || (!hasS3 && !hasLambda && !hasRDS && (!data || data.length === 0))) return
 
     if (chartRef.current) {
       chartRef.current.remove()
@@ -95,10 +113,10 @@ export default function Chart({ data, s3Data, chartType, activeIndicators, granu
         rightPriceScale: { minMove: 0.001 },
       })
       const entries = Object.entries(s3Data)
+      if (!hiddenS3Classes.has('aws'))
       for (let i = 0; i < entries.length; i++) {
         const [cls, points] = entries[i]
         if (!points || points.length === 0) continue
-        if (hiddenS3Classes.has(cls)) continue
         const color = S3_COLORS[cls] || '#9ca3af'
         const priceFormat = { type: 'price', precision: 3, minMove: 0.001 }
 
@@ -124,12 +142,84 @@ export default function Chart({ data, s3Data, chartType, activeIndicators, granu
           }).setData(points)
         }
       }
+      // Add Azure/GCP comparison price lines
+      if (storageComparison) {
+        const refOpts = { lineWidth: 1, lineStyle: 3, priceLineVisible: false, lastValueVisible: false,
+          priceFormat: { type: 'price', precision: 3, minMove: 0.001 } }
+
+        if (!hiddenS3Classes.has('azure'))
+        for (const [label, price] of Object.entries(storageComparison.azure || {})) {
+          const s = chart.addSeries(LineSeries, { ...refOpts, color: AZURE_COLOR, title: '' })
+          // Create a flat line using the first and last dates from S3 data
+          const allDates = Object.values(s3Data).flat().map(d => d.time).sort()
+          if (allDates.length >= 2) {
+            s.setData([
+              { time: allDates[0], value: price },
+              { time: allDates[allDates.length - 1], value: price },
+            ])
+          }
+        }
+
+        if (!hiddenS3Classes.has('gcp'))
+        for (const [label, price] of Object.entries(storageComparison.gcp || {})) {
+          const s = chart.addSeries(LineSeries, { ...refOpts, color: GCP_COLOR, title: '' })
+          const allDates = Object.values(s3Data).flat().map(d => d.time).sort()
+          if (allDates.length >= 2) {
+            s.setData([
+              { time: allDates[0], value: price },
+              { time: allDates[allDates.length - 1], value: price },
+            ])
+          }
+        }
+      }
+
       chart.timeScale().fitContent()
 
       const ro = new ResizeObserver(() => {
         if (containerRef.current) {
           chart.applyOptions({ width: containerRef.current.clientWidth, height: containerRef.current.clientHeight })
         }
+      })
+      ro.observe(containerRef.current)
+      return () => { ro.disconnect(); chart.remove(); chartRef.current = null }
+    }
+
+    // Lambda mode: one line per pricing category
+    if (isLambda && lambdaData && Object.keys(lambdaData).length > 0) {
+      for (const [cat, points] of Object.entries(lambdaData)) {
+        if (!points || points.length === 0) continue
+        chart.addSeries(LineSeries, {
+          color: LAMBDA_COLORS[cat] || '#9ca3af',
+          lineWidth: 2,
+          priceLineVisible: false,
+          lastValueVisible: true,
+          title: cat,
+          priceFormat: { type: 'price', precision: 10, minMove: 0.0000000001 },
+        }).setData(points)
+      }
+      chart.timeScale().fitContent()
+      const ro = new ResizeObserver(() => {
+        if (containerRef.current) chart.applyOptions({ width: containerRef.current.clientWidth, height: containerRef.current.clientHeight })
+      })
+      ro.observe(containerRef.current)
+      return () => { ro.disconnect(); chart.remove(); chartRef.current = null }
+    }
+
+    // RDS mode: one line per engine
+    if (isRDS && rdsData && Object.keys(rdsData).length > 0) {
+      for (const [engine, points] of Object.entries(rdsData)) {
+        if (!points || points.length === 0) continue
+        chart.addSeries(LineSeries, {
+          color: RDS_COLORS[engine] || '#9ca3af',
+          lineWidth: 2,
+          priceLineVisible: false,
+          lastValueVisible: true,
+          title: engine,
+        }).setData(points)
+      }
+      chart.timeScale().fitContent()
+      const ro = new ResizeObserver(() => {
+        if (containerRef.current) chart.applyOptions({ width: containerRef.current.clientWidth, height: containerRef.current.clientHeight })
       })
       ro.observe(containerRef.current)
       return () => { ro.disconnect(); chart.remove(); chartRef.current = null }
@@ -219,34 +309,57 @@ export default function Chart({ data, s3Data, chartType, activeIndicators, granu
       chart.remove()
       chartRef.current = null
     }
-  }, [data, s3Data, isS3, chartType, activeIndicators, granularity, theme, onDemandData, riData, hiddenS3Classes])
+  }, [data, s3Data, lambdaData, rdsData, isS3, isLambda, isRDS, chartType, activeIndicators, granularity, theme, onDemandData, riData, hiddenS3Classes])
 
   return (
     <div className="chart-area">
-      <div className="y-axis-label">{isS3 ? 'Price (USD / GB / mo)' : 'Price (USD / hr)'}</div>
+      <div className="y-axis-label">
+        {isS3 ? 'Price (USD / GB / mo)' : isLambda ? 'Price (USD)' : 'Price (USD / hr)'}
+      </div>
       {instance && (
         <div className="chart-title">
-          <span className="instance-name">{isS3 ? 'S3 Storage' : instance}</span> &mdash; {region} &mdash; {isS3 ? 'Price per GB per Month (USD)' : 'EC2 Hourly Rate (USD)'}
+          <span className="instance-name">{isS3 ? 'S3 Storage' : isLambda ? 'Lambda' : isRDS ? instance : instance}</span>
+          {' '}&mdash; {region} &mdash;{' '}
+          {isS3 ? 'Price per GB per Month' : isLambda ? 'Serverless Pricing' : isRDS ? 'RDS Hourly Rate (USD)' : 'EC2 Hourly Rate (USD)'}
         </div>
       )}
       {isS3 && s3Data && (
         <div className="s3-legend">
-          {Object.keys(s3Data).map(cls => (
+          <div
+            className={`s3-legend-item ${hiddenS3Classes.has('aws') ? 'inactive' : 'active'}`}
+            onClick={() => toggleS3Class('aws')}
+          >
+            <div className="s3-legend-checkbox">
+              <div className="s3-legend-checkbox-inner" style={{ backgroundColor: '#f59e0b' }} />
+            </div>
+            AWS S3
+          </div>
+          {storageComparison && storageComparison.azure && (
             <div
-              key={cls}
-              className={`s3-legend-item ${hiddenS3Classes.has(cls) ? 'inactive' : 'active'}`}
-              onClick={() => toggleS3Class(cls)}
+              className={`s3-legend-item ${hiddenS3Classes.has('azure') ? 'inactive' : 'active'}`}
+              onClick={() => toggleS3Class('azure')}
             >
               <div className="s3-legend-checkbox">
-                <div className="s3-legend-checkbox-inner" style={{ backgroundColor: S3_COLORS[cls] || '#9ca3af' }} />
+                <div className="s3-legend-checkbox-inner" style={{ backgroundColor: AZURE_COLOR }} />
               </div>
-              {cls}
+              Azure Blob
             </div>
-          ))}
+          )}
+          {storageComparison && storageComparison.gcp && (
+            <div
+              className={`s3-legend-item ${hiddenS3Classes.has('gcp') ? 'inactive' : 'active'}`}
+              onClick={() => toggleS3Class('gcp')}
+            >
+              <div className="s3-legend-checkbox">
+                <div className="s3-legend-checkbox-inner" style={{ backgroundColor: GCP_COLOR }} />
+              </div>
+              Google Cloud
+            </div>
+          )}
         </div>
       )}
       <div className="chart-container" ref={containerRef} />
-      {(!data || data.length === 0) && (!s3Data || s3Data.length === 0) && (
+      {(!data || data.length === 0) && !isS3 && !isLambda && !isRDS && (
         <div className="no-data-msg">
           {instance ? 'No data for this instance type in the selected time range' : 'Select an instance type'}
         </div>

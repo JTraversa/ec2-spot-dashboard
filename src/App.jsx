@@ -11,7 +11,7 @@ import { useSpotData } from './hooks/useSpotData'
 const GRANULARITY_LABELS = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' }
 
 function App() {
-  const { meta, loading, loadRegion, getInstanceData, getOnDemandData, getRIData, getS3Data, getS3Classes } = useSpotData()
+  const { meta, loading, loadRegion, getInstanceData, getOnDemandData, getRIData, getS3Data, getS3Classes, getLambdaData, getLambdaCategories, getRDSData, getRDSInstances, getStorageComparison } = useSpotData()
 
   const [region, setRegion] = useState('us-east-1')
   const [instance, setInstance] = useState(null)
@@ -21,8 +21,12 @@ function App() {
   const [activeIndicators, setActiveIndicators] = useState(new Set())
   const [regionLoaded, setRegionLoaded] = useState(false)
 
-  // Track whether the selected item is S3
+  // Track service type from selection
   const isS3 = instance === 's3:all'
+  const isLambda = instance === 'lambda:all'
+  const isRDS = instance && instance.startsWith('rds:')
+  const rdsType = isRDS ? instance.slice(4) : null
+  const isEC2 = !isS3 && !isLambda && !isRDS
 
   useEffect(() => {
     if (!loading) {
@@ -66,6 +70,29 @@ function App() {
     return result
   }, [isS3, region, regionLoaded])
 
+  // Lambda chart data — all categories as a map
+  const lambdaChartData = useMemo(() => {
+    if (!isLambda || !regionLoaded) return {}
+    const cats = getLambdaCategories(region)
+    const result = {}
+    for (const cat of cats) {
+      const data = getLambdaData(region, cat)
+      if (data.length > 0) result[cat] = data
+    }
+    return result
+  }, [isLambda, region, regionLoaded])
+
+  // RDS chart data — MySQL and PostgreSQL on same chart
+  const rdsChartData = useMemo(() => {
+    if (!isRDS || !regionLoaded || !rdsType) return {}
+    const result = {}
+    for (const engine of ['MySQL', 'PostgreSQL']) {
+      const data = getRDSData(region, rdsType, engine)
+      if (data.length > 0) result[engine] = data
+    }
+    return result
+  }, [isRDS, rdsType, region, regionLoaded])
+
   // EC2 chart data
   const { chartData, stats, usedGranularity } = useMemo(() => {
     if (isS3) {
@@ -87,6 +114,48 @@ function App() {
           changeClass,
           range: `$${Math.min(...allVals).toFixed(4)} — $${Math.max(...allVals).toFixed(4)}`,
           granularity: `${totalClasses} storage classes`,
+        },
+      }
+    }
+
+    if (isLambda) {
+      const computeData = lambdaChartData['Compute (x86)'] || []
+      if (computeData.length === 0) return { chartData: [], stats: {}, usedGranularity: 'monthly' }
+      const latest = computeData[computeData.length - 1]
+      const first = computeData[0]
+      const change = ((latest.value - first.value) / first.value * 100)
+      const changeClass = change >= 0 ? 'up' : 'down'
+      const icon = change >= 0 ? '\u25B2' : '\u25BC'
+      return {
+        chartData: [],
+        usedGranularity: 'monthly',
+        stats: {
+          price: `$${latest.value.toFixed(10)}`,
+          change: `${icon} ${Math.abs(change).toFixed(1)}%`,
+          changeClass,
+          range: `—`,
+          granularity: `${Object.keys(lambdaChartData).length} pricing tiers`,
+        },
+      }
+    }
+
+    if (isRDS) {
+      const mysqlData = rdsChartData['MySQL'] || []
+      if (mysqlData.length === 0) return { chartData: [], stats: {}, usedGranularity: 'monthly' }
+      const latest = mysqlData[mysqlData.length - 1]
+      const first = mysqlData[0]
+      const change = ((latest.value - first.value) / first.value * 100)
+      const changeClass = change >= 0 ? 'up' : 'down'
+      const icon = change >= 0 ? '\u25B2' : '\u25BC'
+      return {
+        chartData: [],
+        usedGranularity: 'monthly',
+        stats: {
+          price: `$${latest.value.toFixed(4)}/hr`,
+          change: `${icon} ${Math.abs(change).toFixed(1)}%`,
+          changeClass,
+          range: `—`,
+          granularity: `MySQL & PostgreSQL`,
         },
       }
     }
@@ -126,7 +195,7 @@ function App() {
         granularity: `${GRANULARITY_LABELS[result.actualGranularity]} (${data.length} pts)`,
       },
     }
-  }, [isS3, s3ChartData, instance, region, granularity, timeRange, regionLoaded, getInstanceData])
+  }, [isS3, isLambda, isRDS, s3ChartData, lambdaChartData, rdsChartData, instance, region, granularity, timeRange, regionLoaded, getInstanceData])
 
   const getExportData = useCallback(() => {
     return chartData.map(d => ({
@@ -136,22 +205,25 @@ function App() {
   }, [chartData, region])
 
   const onDemandData = useMemo(() => {
-    if (isS3 || !instance || !regionLoaded) return []
+    if (!isEC2 || !instance || !regionLoaded) return []
     return getOnDemandData(instance, region)
-  }, [isS3, instance, region, regionLoaded])
+  }, [isEC2, instance, region, regionLoaded])
 
   const riDataMemo = useMemo(() => {
-    if (isS3 || !instance || !regionLoaded) return null
+    if (!isEC2 || !instance || !regionLoaded) return null
     return {
       ri1yNoUpfront: getRIData(instance, region, 'ri_1y_no_upfront_standard'),
       ri3yNoUpfront: getRIData(instance, region, 'ri_3y_no_upfront_standard'),
     }
-  }, [isS3, instance, region, regionLoaded])
+  }, [isEC2, instance, region, regionLoaded])
 
-  // Build sidebar items: EC2 instances + S3 storage classes
+  // Build sidebar items
   const instances = meta[region] || []
   const s3Classes = regionLoaded ? getS3Classes(region) : []
-  const s3Items = s3Classes.map(cls => ({ t: `s3:${cls}`, p: 0, isS3: true, label: cls }))
+  const s3Items = s3Classes.map(cls => ({ t: `s3:${cls}`, p: 0 }))
+  const lambdaCats = regionLoaded ? getLambdaCategories(region) : []
+  const rdsItems = regionLoaded ? getRDSInstances(region) : []
+  const isNonEC2 = isS3 || isLambda || isRDS
 
   return (
     <div className="app">
@@ -165,26 +237,33 @@ function App() {
         granularity={granularity} setGranularity={setGranularity}
         activeIndicators={activeIndicators} toggleIndicator={toggleIndicator}
         exportData={getExportData} currentInstance={instance}
-        isS3={isS3}
+        isS3={isNonEC2}
       />
       <div className="main">
         <Sidebar
           instances={instances}
           s3Items={s3Items}
+          lambdaItems={lambdaCats}
+          rdsItems={rdsItems}
           currentInstance={instance}
           onSelect={setInstance}
         />
         <Chart
-          data={isS3 ? null : chartData}
+          data={isEC2 ? chartData : null}
           s3Data={isS3 ? s3ChartData : null}
+          lambdaData={isLambda ? lambdaChartData : null}
+          rdsData={isRDS ? rdsChartData : null}
           chartType={chartType}
-          activeIndicators={activeIndicators}
+          activeIndicators={isEC2 ? activeIndicators : new Set()}
           granularity={usedGranularity}
-          instance={isS3 ? 'S3' : instance}
+          instance={isS3 ? 'S3' : isLambda ? 'Lambda' : isRDS ? rdsType : instance}
           region={region}
           onDemandData={onDemandData}
           riData={riDataMemo}
           isS3={isS3}
+          isLambda={isLambda}
+          isRDS={isRDS}
+          storageComparison={isS3 && regionLoaded ? getStorageComparison(region) : null}
         />
       </div>
       <Footer />

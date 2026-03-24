@@ -1,4 +1,4 @@
-const CATEGORIES = {
+const EC2_CATEGORIES = {
   'General Purpose': /^(m[1-7]|t[1-4])\./,
   'Compute Optimized': /^c[1-7]\./,
   'Memory Optimized': /^(r[3-7]|m2\.)/,
@@ -6,9 +6,9 @@ const CATEGORIES = {
   'Storage Optimized': /^i[2-4]\./,
 }
 
-export default function Sidebar({ instances, s3Items = [], currentInstance, onSelect }) {
+export default function Sidebar({ instances, s3Items = [], lambdaItems = [], rdsItems = [], currentInstance, onSelect }) {
   const grouped = {}
-  for (const [cat, regex] of Object.entries(CATEGORIES)) {
+  for (const [cat, regex] of Object.entries(EC2_CATEGORIES)) {
     const items = instances.filter(i => regex.test(i.t))
     if (items.length > 0) grouped[cat] = items
   }
@@ -31,6 +31,22 @@ export default function Sidebar({ instances, s3Items = [], currentInstance, onSe
         </div>
       ))}
 
+      {rdsItems.length > 0 && (
+        <div className="sidebar-section">
+          <h3>Database (RDS)</h3>
+          {rdsItems.map(item => (
+            <div
+              key={item.t}
+              className={`instance-item ${('rds:' + item.t) === currentInstance ? 'selected' : ''}`}
+              onClick={() => onSelect('rds:' + item.t)}
+            >
+              <span>{item.t}</span>
+              <span className="price">${item.p.toFixed(4)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {s3Items.length > 0 && (
         <div className="sidebar-section">
           <h3>Storage</h3>
@@ -39,6 +55,18 @@ export default function Sidebar({ instances, s3Items = [], currentInstance, onSe
             onClick={() => onSelect('s3:all')}
           >
             <span>S3 (all classes)</span>
+          </div>
+        </div>
+      )}
+
+      {lambdaItems.length > 0 && (
+        <div className="sidebar-section">
+          <h3>Serverless</h3>
+          <div
+            className={`instance-item ${currentInstance === 'lambda:all' ? 'selected' : ''}`}
+            onClick={() => onSelect('lambda:all')}
+          >
+            <span>Lambda (all tiers)</span>
           </div>
         </div>
       )}
