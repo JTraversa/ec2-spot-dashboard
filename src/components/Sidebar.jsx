@@ -77,7 +77,7 @@ export default function Sidebar({ provider = 'aws', instances, allInstances = []
               onClick={() => onSelect(item.t)}
             >
               <span>{item.t}</span>
-              <span className="price">${item.p.toFixed(4)}</span>
+              <span className="price">${item.p != null ? item.p.toFixed(4) : '—'}</span>
             </div>
           ))}
         </div>
@@ -93,7 +93,7 @@ export default function Sidebar({ provider = 'aws', instances, allInstances = []
               onClick={() => onSelect('rds:' + item.t)}
             >
               <span>{item.t}</span>
-              <span className="price">${item.p.toFixed(4)}</span>
+              <span className="price">${item.p != null ? item.p.toFixed(4) : '—'}</span>
             </div>
           ))}
         </div>
