@@ -1,9 +1,16 @@
-export default function Header({ stats }) {
+const PROVIDER_META = {
+  aws:   { title: 'AWS Pricing Dashboard',   subtitle: 'Historical EC2 spot pricing — Linux/UNIX, 2014 to present' },
+  gcp:   { title: 'GCP Pricing Dashboard',   subtitle: 'Historical Spot VM pricing — 2024 to present' },
+  azure: { title: 'Azure Pricing Dashboard', subtitle: 'Historical Spot VM pricing — 2025 to present' },
+}
+
+export default function Header({ provider = 'aws', stats }) {
+  const { title, subtitle } = PROVIDER_META[provider] || PROVIDER_META.aws
   return (
     <div className="dashboard-header">
       <div>
-        <h1>AWS Pricing Dashboard</h1>
-        <div className="subtitle">Historical EC2 and S3 pricing — 2006 to present</div>
+        <h1>{title}</h1>
+        <div className="subtitle">{subtitle}</div>
       </div>
       <div className="header-stats">
         <div className="stat-box">

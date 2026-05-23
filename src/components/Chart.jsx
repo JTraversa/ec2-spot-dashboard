@@ -32,10 +32,27 @@ const RDS_COLORS = {
   'PostgreSQL': '#10b981',
 }
 
+const EBS_COLORS = {
+  'gp3': '#10b981',
+  'gp2': '#2563eb',
+  'io2': '#ec4899',
+  'io1': '#f59e0b',
+  'st1': '#06b6d4',
+  'sc1': '#8b5cf6',
+}
+
+const TRANSFER_COLORS = {
+  'Internet (0-10 TB)': '#2563eb',
+  'Internet (10-50 TB)': '#10b981',
+  'Internet (50-150 TB)': '#f59e0b',
+  'Cross-Region': '#ec4899',
+  'Cross-AZ': '#8b5cf6',
+}
+
 const AZURE_COLOR = '#0078d4'
 const GCP_COLOR = '#34a853'
 
-export default function Chart({ data, s3Data, lambdaData, rdsData, chartType, activeIndicators, granularity, instance, region, onDemandData, riData, isS3, isLambda, isRDS, storageComparison }) {
+export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, transferData, chartType, activeIndicators, granularity, instance, region, onDemandData, riData, isS3, isLambda, isRDS, isEBS, isTransfer, storageComparison }) {
   const containerRef = useRef(null)
   const chartRef = useRef(null)
   const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'dark')
@@ -62,7 +79,9 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, chartType, ac
     const hasS3 = isS3 && s3Data && Object.keys(s3Data).length > 0
     const hasLambda = isLambda && lambdaData && Object.keys(lambdaData).length > 0
     const hasRDS = isRDS && rdsData && Object.keys(rdsData).length > 0
-    if (!containerRef.current || (!hasS3 && !hasLambda && !hasRDS && (!data || data.length === 0))) return
+    const hasEBSData = isEBS && ebsData && Object.keys(ebsData).length > 0
+    const hasTransferData = isTransfer && transferData && Object.keys(transferData).length > 0
+    if (!containerRef.current || (!hasS3 && !hasLambda && !hasRDS && !hasEBSData && !hasTransferData && (!data || data.length === 0))) return
 
     if (chartRef.current) {
       chartRef.current.remove()
@@ -225,6 +244,50 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, chartType, ac
       return () => { ro.disconnect(); chart.remove(); chartRef.current = null }
     }
 
+    // EBS mode: one line per volume type
+    if (isEBS && ebsData && Object.keys(ebsData).length > 0) {
+      chart.applyOptions({ rightPriceScale: { minMove: 0.001 } })
+      for (const [volType, points] of Object.entries(ebsData)) {
+        if (!points || points.length === 0) continue
+        chart.addSeries(LineSeries, {
+          color: EBS_COLORS[volType] || '#9ca3af',
+          lineWidth: 2,
+          priceLineVisible: false,
+          lastValueVisible: true,
+          title: volType,
+          priceFormat: { type: 'price', precision: 4, minMove: 0.0001 },
+        }).setData(points)
+      }
+      chart.timeScale().fitContent()
+      const ro = new ResizeObserver(() => {
+        if (containerRef.current) chart.applyOptions({ width: containerRef.current.clientWidth, height: containerRef.current.clientHeight })
+      })
+      ro.observe(containerRef.current)
+      return () => { ro.disconnect(); chart.remove(); chartRef.current = null }
+    }
+
+    // Transfer mode: one line per transfer type
+    if (isTransfer && transferData && Object.keys(transferData).length > 0) {
+      chart.applyOptions({ rightPriceScale: { minMove: 0.001 } })
+      for (const [txType, points] of Object.entries(transferData)) {
+        if (!points || points.length === 0) continue
+        chart.addSeries(LineSeries, {
+          color: TRANSFER_COLORS[txType] || '#9ca3af',
+          lineWidth: 2,
+          priceLineVisible: false,
+          lastValueVisible: true,
+          title: txType,
+          priceFormat: { type: 'price', precision: 3, minMove: 0.001 },
+        }).setData(points)
+      }
+      chart.timeScale().fitContent()
+      const ro = new ResizeObserver(() => {
+        if (containerRef.current) chart.applyOptions({ width: containerRef.current.clientWidth, height: containerRef.current.clientHeight })
+      })
+      ro.observe(containerRef.current)
+      return () => { ro.disconnect(); chart.remove(); chartRef.current = null }
+    }
+
     const linePoints = data.map(d => ({ time: d.date, value: d.avg }))
     const filled = fillTimeGaps(linePoints, granularity)
     const chartData = filled.map(d => ({ time: d.time, value: d.noData ? undefined : d.value }))
@@ -309,18 +372,18 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, chartType, ac
       chart.remove()
       chartRef.current = null
     }
-  }, [data, s3Data, lambdaData, rdsData, isS3, isLambda, isRDS, chartType, activeIndicators, granularity, theme, onDemandData, riData, hiddenS3Classes])
+  }, [data, s3Data, lambdaData, rdsData, ebsData, transferData, isS3, isLambda, isRDS, isEBS, isTransfer, chartType, activeIndicators, granularity, theme, onDemandData, riData, hiddenS3Classes])
 
   return (
     <div className="chart-area">
       <div className="y-axis-label">
-        {isS3 ? 'Price (USD / GB / mo)' : isLambda ? 'Price (USD)' : 'Price (USD / hr)'}
+        {isS3 || isEBS ? 'Price (USD / GB / mo)' : isTransfer ? 'Price (USD / GB)' : isLambda ? 'Price (USD)' : 'Price (USD / hr)'}
       </div>
       {instance && (
         <div className="chart-title">
-          <span className="instance-name">{isS3 ? 'S3 Storage' : isLambda ? 'Lambda' : isRDS ? instance : instance}</span>
+          <span className="instance-name">{isS3 ? 'S3 Storage' : isLambda ? 'Lambda' : isRDS ? instance : isEBS ? 'EBS Block Storage' : isTransfer ? 'Data Transfer' : instance}</span>
           {' '}&mdash; {region} &mdash;{' '}
-          {isS3 ? 'Price per GB per Month' : isLambda ? 'Serverless Pricing' : isRDS ? 'RDS Hourly Rate (USD)' : 'EC2 Hourly Rate (USD)'}
+          {isS3 ? 'Price per GB per Month' : isLambda ? 'Serverless Pricing' : isRDS ? 'RDS Hourly Rate (USD)' : isEBS ? 'Storage per GB per Month' : isTransfer ? 'Egress & Transfer per GB' : 'EC2 Hourly Rate (USD)'}
         </div>
       )}
       {isS3 && s3Data && (
@@ -359,7 +422,7 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, chartType, ac
         </div>
       )}
       <div className="chart-container" ref={containerRef} />
-      {(!data || data.length === 0) && !isS3 && !isLambda && !isRDS && (
+      {(!data || data.length === 0) && !isS3 && !isLambda && !isRDS && !isEBS && !isTransfer && (
         <div className="no-data-msg">
           {instance ? 'No data for this instance type in the selected time range' : 'Select an instance type'}
         </div>

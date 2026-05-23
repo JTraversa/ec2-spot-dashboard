@@ -40,9 +40,9 @@ export function fillTimeGaps(data, gran) {
       if (gapDays > maxGapDays) {
         const step = new Date(curr)
         while (true) {
-          if (gran === 'monthly') step.setMonth(step.getMonth() + 1)
-          else if (gran === 'weekly') step.setDate(step.getDate() + 7)
-          else step.setDate(step.getDate() + 1)
+          if (gran === 'monthly') step.setUTCMonth(step.getUTCMonth() + 1)
+          else if (gran === 'weekly') step.setUTCDate(step.getUTCDate() + 7)
+          else step.setUTCDate(step.getUTCDate() + 1)
           if (step >= next) break
           filled.push({ time: step.toISOString().slice(0, 10), value: undefined, noData: true })
         }
