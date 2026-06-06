@@ -1,0 +1,1 @@
+{"azure":{"Hot (Blob)":0.0208,"Cool (Blob)":0.0152,"Cold (Blob)":0.0036,"Archive (Blob)":0.00099},"gcp":{"Standard (GCS)":0.026,"Nearline (GCS)":0.015,"Coldline (GCS)":0.007,"Archive (GCS)":0.0024}}
