@@ -299,9 +299,10 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
         topColor: 'rgba(37, 99, 235, 0.3)',
         bottomColor: 'rgba(37, 99, 235, 0.02)',
         lineWidth: 2,
+        title: 'Spot Price',
       })
     } else {
-      mainSeries = chart.addSeries(LineSeries, { color: '#2563eb', lineWidth: 2 })
+      mainSeries = chart.addSeries(LineSeries, { color: '#2563eb', lineWidth: 2, title: 'Spot Price' })
     }
     mainSeries.setData(chartData)
 

@@ -89,13 +89,27 @@ export function useSpotData() {
     })
   }
 
+  // Overlay files (RI/S3/Lambda/RDS/EBS/transfer) are sparse change-point series
+  // that end at the last price change — often well before "now". Carry the last
+  // known value forward to the latest spot date so the line spans the chart
+  // instead of stopping mid-range. (daily.json is date-sorted, so the last row
+  // is the latest date.)
+  function anchorToLatest(series, provider, region) {
+    if (series.length === 0) return series
+    const daily = cache.current[`${provider}/${region}/daily`] || []
+    const latest = daily.length ? daily[daily.length - 1].date : ''
+    const last = series[series.length - 1]
+    if (latest && latest > last.time) return [...series, { time: latest, value: last.value }]
+    return series
+  }
+
   function getOnDemandData(inst, provider, region) {
     const data = cache.current[`${provider}/${region}/ondemand`] || []
     const mapped = data
       .filter(d => d.instance_type === inst)
       .sort((a, b) => a.date.localeCompare(b.date))
       .map(d => ({ time: d.date, value: d.price }))
-    return dedupeByDate(mapped)
+    return anchorToLatest(dedupeByDate(mapped), provider, region)
   }
 
   function getRIData(inst, provider, region, riType) {
@@ -104,7 +118,7 @@ export function useSpotData() {
       .filter(d => d.instance_type === inst && d.ri_type === riType)
       .sort((a, b) => a.date.localeCompare(b.date))
       .map(d => ({ time: d.date, value: d.price }))
-    return dedupeByDate(mapped)
+    return anchorToLatest(dedupeByDate(mapped), provider, region)
   }
 
   function getS3Data(provider, region, storageClass) {
@@ -113,7 +127,7 @@ export function useSpotData() {
       .filter(d => d.storage_class === storageClass)
       .sort((a, b) => a.date.localeCompare(b.date))
       .map(d => ({ time: d.date, value: d.price }))
-    return dedupeByDate(mapped)
+    return anchorToLatest(dedupeByDate(mapped), provider, region)
   }
 
   function getS3Classes(provider, region) {
@@ -127,7 +141,7 @@ export function useSpotData() {
       .filter(d => d.category === category)
       .sort((a, b) => a.date.localeCompare(b.date))
       .map(d => ({ time: d.date, value: d.price }))
-    return dedupeByDate(mapped)
+    return anchorToLatest(dedupeByDate(mapped), provider, region)
   }
 
   function getLambdaCategories(provider, region) {
@@ -141,7 +155,7 @@ export function useSpotData() {
       .filter(d => d.instance_type === instanceType && d.engine === engine)
       .sort((a, b) => a.date.localeCompare(b.date))
       .map(d => ({ time: d.date, value: d.price }))
-    return dedupeByDate(mapped)
+    return anchorToLatest(dedupeByDate(mapped), provider, region)
   }
 
   function getRDSInstances(provider, region) {
@@ -164,7 +178,7 @@ export function useSpotData() {
       .filter(d => d.volume_type === volumeType)
       .sort((a, b) => a.date.localeCompare(b.date))
       .map(d => ({ time: d.date, value: d.price }))
-    return dedupeByDate(mapped)
+    return anchorToLatest(dedupeByDate(mapped), provider, region)
   }
 
   function getEBSTypes(provider, region) {
@@ -180,7 +194,7 @@ export function useSpotData() {
       .filter(d => d.transfer_type === transferType)
       .sort((a, b) => a.date.localeCompare(b.date))
       .map(d => ({ time: d.date, value: d.price }))
-    return dedupeByDate(mapped)
+    return anchorToLatest(dedupeByDate(mapped), provider, region)
   }
 
   function getTransferTypes(provider, region) {
