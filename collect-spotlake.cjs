@@ -18,6 +18,18 @@ const path = require('path');
 const TITANS = 'https://5nepzdkzaf.execute-api.us-west-2.amazonaws.com/query';
 const OUT = path.join(__dirname, 'public', 'data');
 
+// TITANS caps every query at this many events and silently truncates the rest.
+// Any range that comes back at (or above) the cap is incomplete and must be split.
+const CAP = 500000;
+
+// The app picks granularity by time range (daily ≤3M, weekly ≤1Y, monthly = ALL),
+// so older fine-grained data is never displayed. Trim each granularity to the
+// window that actually uses it (plus a buffer) to keep the shipped JSON small —
+// full daily history would be >100MB/region and exceed GitHub's file limit.
+const DAILY_KEEP_DAYS = 120;   // covers the 90-day (3M) daily view
+const WEEKLY_KEEP_DAYS = 400;  // covers the 365-day (1Y) weekly view
+// monthly is kept in full (ALL view) — it's small.
+
 // Popular Azure instances curated from SpotLake data (Standard_ prefix dropped)
 const AZURE_INSTANCES = [
   // General purpose — D series (Intel)
@@ -44,8 +56,8 @@ const CONFIG = {
   aws: {
     regions: ['us-east-1', 'eu-west-1', 'us-west-2'],
     instanceTypes: ['all'],  // SpotLake AWS = Linux/UNIX only
-    startDate: '2021-01-01',
-    chunkSize: 'month',
+    startDate: '2024-01-01',  // TITANS has no AWS parquet before early 2024
+    chunkSize: 4,             // days — small chunks stay under the 500K/query cap
   },
   gcp: {
     regions: ['us-central1', 'us-east4', 'europe-west4'],
@@ -111,8 +123,10 @@ function dateRanges(startStr, endStr, size) {
     const next = new Date(cur);
     if (size === 'month') {
       next.setUTCMonth(next.getUTCMonth() + 1);
-    } else {
+    } else if (size === 'week') {
       next.setUTCDate(next.getUTCDate() + 7);
+    } else {
+      next.setUTCDate(next.getUTCDate() + Number(size));  // numeric: N days
     }
     const rangeEnd = next > end ? end : next;
     ranges.push({
@@ -143,35 +157,47 @@ function makeAccumulator() {
     for (const r of results) {
       const date = r.Time.slice(0, 10);
       const inst = r.InstanceType;
+      const p = r.SpotPrice;
       const key = `${inst}::${date}`;
 
-      if (!daily.has(key)) daily.set(key, { inst, date, prices: [], ondemand: r.OndemandPrice });
-      daily.get(key).prices.push(r.SpotPrice);
+      // Running OHLC + sum/count keeps memory bounded by the number of daily
+      // buckets (not the raw event volume), so a full-history collect won't OOM.
+      let b = daily.get(key);
+      if (!b) { b = { inst, date, open: p, high: p, low: p, close: p, sum: 0, n: 0, ondemand: 0 }; daily.set(key, b); }
+      if (p > b.high) b.high = p;
+      if (p < b.low) b.low = p;
+      b.close = p;
+      b.sum += p;
+      b.n += 1;
+      // TITANS uses -1/0 as "no on-demand price" sentinels — only keep real ones.
+      if (r.OndemandPrice > 0) b.ondemand = r.OndemandPrice;
 
       const prev = latestByInst.get(inst);
-      if (!prev || date > prev.date) latestByInst.set(inst, { date, price: r.SpotPrice, ondemand: r.OndemandPrice });
+      if (!prev || date > prev.date) latestByInst.set(inst, { date, price: p });
     }
   }
 
   function finalize() {
-    const dailyArr = [...daily.values()].map(({ inst, date, prices, ondemand }) => ({
+    const dailyArr = [...daily.values()].map(({ inst, date, open, high, low, close, sum, n }) => ({
       date,
       instance_type: inst,
-      open: prices[0],
-      high: Math.max(...prices),
-      low: Math.min(...prices),
-      close: prices[prices.length - 1],
-      avg: +(prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(6),
-      samples: prices.length,
+      open,
+      high,
+      low,
+      close,
+      avg: +(sum / n).toFixed(6),
+      samples: n,
     })).sort((a, b) => a.date.localeCompare(b.date) || a.instance_type.localeCompare(b.instance_type));
 
-    // On-demand: one record per instance per date (last seen on-demand price)
+    // On-demand: one record per instance per date (last seen valid price),
+    // then collapsed to change-points (on-demand is a near-constant step
+    // function — storing every day is ~100x larger for no extra information).
     const odMap = new Map();
     for (const { inst, date, ondemand } of daily.values()) {
-      const key = `${inst}::${date}`;
-      odMap.set(key, { date, instance_type: inst, price: ondemand });
+      if (!(ondemand > 0)) continue;
+      odMap.set(`${inst}::${date}`, { date, instance_type: inst, price: ondemand });
     }
-    const ondemandArr = [...odMap.values()].sort((a, b) => a.date.localeCompare(b.date));
+    const ondemandArr = dedupeOndemand([...odMap.values()]);
 
     // Weekly rollup
     const weeklyMap = new Map();
@@ -210,9 +236,11 @@ function makeAccumulator() {
       .map(([t, e]) => ({ t, p: e.price }))
       .sort((a, b) => a.t.localeCompare(b.t));
 
+    // Rollups are built from the FULL daily history above; only the shipped
+    // daily/weekly arrays are trimmed to their display windows.
     return {
-      daily: dailyArr,
-      weekly: rollup(weeklyMap),
+      daily: trimByDate(dailyArr, DAILY_KEEP_DAYS),
+      weekly: trimByDate(rollup(weeklyMap), WEEKLY_KEEP_DAYS),
       monthly: rollup(monthlyMap),
       ondemand: ondemandArr,
       meta: metaItems,
@@ -222,10 +250,68 @@ function makeAccumulator() {
   return { ingest, finalize };
 }
 
+// Keep only records within `keepDays` of the latest date (arrays are date-sorted).
+function trimByDate(arr, keepDays) {
+  if (arr.length === 0) return arr;
+  const max = new Date(arr[arr.length - 1].date + 'T00:00:00Z');
+  max.setUTCDate(max.getUTCDate() - keepDays);
+  const cutoff = max.toISOString().slice(0, 10);
+  return arr.filter(d => d.date >= cutoff);
+}
+
+// Collapse a per-day on-demand series to change-points, anchoring the last
+// record per instance so the line still extends to the latest date.
+function dedupeOndemand(arr) {
+  const byInst = new Map();
+  for (const r of arr) {
+    if (!byInst.has(r.instance_type)) byInst.set(r.instance_type, []);
+    byInst.get(r.instance_type).push(r);
+  }
+  const out = [];
+  for (const rows of byInst.values()) {
+    rows.sort((a, b) => a.date.localeCompare(b.date));
+    let prev = null;
+    rows.forEach((r, i) => {
+      if (prev === null || r.price !== prev || i === rows.length - 1) out.push(r);
+      prev = r.price;
+    });
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date));
+}
+
 // ── Main collection ──────────────────────────────────────────────────────────
 
 function sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
+}
+
+function daysBetween(start, end) {
+  return Math.round((new Date(end + 'T00:00:00Z') - new Date(start + 'T00:00:00Z')) / 86400000);
+}
+
+function splitDate(start, end) {
+  const m = new Date(start + 'T00:00:00Z');
+  m.setUTCDate(m.getUTCDate() + Math.floor(daysBetween(start, end) / 2));
+  return m.toISOString().slice(0, 10);
+}
+
+// Fetch [start, end). If the server caps the result (i.e. it's truncated), the
+// partial page is discarded and the range is split in half and re-fetched, so
+// busy windows auto-subdivide down to a single day rather than dropping events.
+// Returns the number of events actually ingested.
+async function fetchRange(provider, region, instTypes, start, end, acc) {
+  const results = await queryTITANS(provider, region, instTypes, start, end);
+  if (results.length >= CAP && daysBetween(start, end) > 1) {
+    const mid = splitDate(start, end);
+    process.stdout.write('split ');
+    await sleep(350);
+    const a = await fetchRange(provider, region, instTypes, start, mid, acc);
+    await sleep(350);
+    const b = await fetchRange(provider, region, instTypes, mid, end, acc);
+    return a + b;
+  }
+  acc.ingest(results);
+  return results.length;
 }
 
 async function collectRegion(provider, region, cfg) {
@@ -272,11 +358,10 @@ async function collectRegion(provider, region, cfg) {
 
     process.stdout.write(`    ${range.start} → ${range.end} ... `);
     try {
-      const results = await queryTITANS(provider, region, cfg.instanceTypes, range.start, range.end);
-      acc.ingest(results);
+      const n = await fetchRange(provider, region, cfg.instanceTypes, range.start, range.end, acc);
       processedRanges.add(key);
-      newEvents += results.length;
-      console.log(`${results.length} events`);
+      newEvents += n;
+      console.log(`${n} events`);
     } catch (err) {
       console.log(`SKIP (${err.message.slice(0, 100)})`);
       processedRanges.add(key);
