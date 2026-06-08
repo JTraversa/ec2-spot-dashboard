@@ -12,6 +12,14 @@ const GRANULARITY_LABELS = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly
 
 const DEFAULT_REGION = { aws: 'us-east-1', gcp: 'us-central1', azure: 'us-east' }
 
+// Land on a recognizable general-purpose instance rather than whatever sorts
+// first alphabetically (a1.2xlarge / a2-highgpu-1g / D16als_v7). First match wins.
+const PREFERRED_DEFAULT = {
+  aws: ['m5.large', 'm6i.large', 'c5.large', 't3.medium'],
+  gcp: ['n2-standard-4', 'e2-standard-4', 'n1-standard-4', 'n2-standard-2'],
+  azure: ['D4s_v5', 'D2s_v5', 'D4as_v5'],
+}
+
 function App() {
   const { meta, loading, loadRegion, loadInstance, getAllRegionInstances, getInstanceData, getOnDemandData, getRIData, getS3Data, getS3Classes, getLambdaData, getLambdaCategories, getRDSData, getRDSInstances, getStorageComparison, getEBSData, getEBSTypes, getTransferData, getTransferTypes } = useSpotData()
 
@@ -19,7 +27,7 @@ function App() {
   const [region, setRegion] = useState('us-east-1')
   const [instance, setInstance] = useState(null)
   const [chartType, setChartType] = useState('line')
-  const [timeRange, setTimeRange] = useState(90)
+  const [timeRange, setTimeRange] = useState(365)
   const [granularity, setGranularity] = useState('daily')
   const [activeIndicators, setActiveIndicators] = useState(new Set())
   const [regionLoaded, setRegionLoaded] = useState(false)
@@ -44,7 +52,10 @@ function App() {
   useEffect(() => {
     if (regionLoaded && meta[provider] && meta[provider][region] && !instance) {
       const instances = meta[provider][region]
-      if (instances.length > 0) setInstance(instances[0].t)
+      if (instances.length === 0) return
+      const types = instances.map(i => i.t)
+      const preferred = (PREFERRED_DEFAULT[provider] || []).find(t => types.includes(t))
+      setInstance(preferred || instances[0].t)
     }
   }, [regionLoaded, meta, provider, region])
 

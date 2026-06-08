@@ -338,11 +338,12 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
       }
     }
 
-    // Reference price lines (on-demand, RI)
-    const refLineOpts = { lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: true }
+    // Reference price lines (on-demand, RI) — consistent dashed weight so the
+    // 1yr/3yr RI lines read as clearly as On-Demand at any resolution.
+    const refLineOpts = { lineWidth: 2, lineStyle: 2, priceLineVisible: false, lastValueVisible: true }
 
     if (Array.isArray(onDemandData) && onDemandData.length > 0) {
-      chart.addSeries(LineSeries, { ...refLineOpts, color: '#ef4444', lineWidth: 2, title: 'On-Demand' })
+      chart.addSeries(LineSeries, { ...refLineOpts, color: '#ef4444', title: 'On-Demand' })
         .setData(onDemandData)
     }
 
