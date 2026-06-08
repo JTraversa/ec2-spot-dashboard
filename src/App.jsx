@@ -13,7 +13,7 @@ const GRANULARITY_LABELS = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly
 const DEFAULT_REGION = { aws: 'us-east-1', gcp: 'us-central1', azure: 'us-east' }
 
 function App() {
-  const { meta, loading, loadRegion, getAllRegionInstances, getInstanceData, getOnDemandData, getRIData, getS3Data, getS3Classes, getLambdaData, getLambdaCategories, getRDSData, getRDSInstances, getStorageComparison, getEBSData, getEBSTypes, getTransferData, getTransferTypes } = useSpotData()
+  const { meta, loading, loadRegion, loadInstance, getAllRegionInstances, getInstanceData, getOnDemandData, getRIData, getS3Data, getS3Classes, getLambdaData, getLambdaCategories, getRDSData, getRDSInstances, getStorageComparison, getEBSData, getEBSTypes, getTransferData, getTransferTypes } = useSpotData()
 
   const [provider, setProviderState] = useState('aws')
   const [region, setRegion] = useState('us-east-1')
@@ -23,8 +23,9 @@ function App() {
   const [granularity, setGranularity] = useState('daily')
   const [activeIndicators, setActiveIndicators] = useState(new Set())
   const [regionLoaded, setRegionLoaded] = useState(false)
+  const [instanceLoaded, setInstanceLoaded] = useState(false)
 
-  // Track service type from selection
+  // Service type encoded in the selection string
   const isS3 = instance === 's3:all'
   const isLambda = instance === 'lambda:all'
   const isRDS = instance && instance.startsWith('rds:')
@@ -46,6 +47,13 @@ function App() {
       if (instances.length > 0) setInstance(instances[0].t)
     }
   }, [regionLoaded, meta, provider, region])
+
+  // Load the selected instance's per-instance spot file (EC2 only).
+  useEffect(() => {
+    if (!regionLoaded || !instance || !isEC2) return
+    setInstanceLoaded(false)
+    loadInstance(provider, region, instance).then(() => setInstanceLoaded(true))
+  }, [regionLoaded, provider, region, instance, isEC2])
 
   const handleProviderChange = useCallback(async (newProvider) => {
     const newRegion = DEFAULT_REGION[newProvider]
@@ -133,8 +141,10 @@ function App() {
     return result
   }, [isTransfer, provider, region, regionLoaded])
 
-  // EC2/spot chart data + stats
-  const { chartData, stats, usedGranularity } = useMemo(() => {
+  // EC2/spot chart data + stats. The chart receives the FULL series; the range
+  // preset only sets the initial visible window (the chart can still pan/zoom),
+  // and stats are computed over that window.
+  const { chartData, stats, usedGranularity, visibleRange } = useMemo(() => {
     if (isS3) {
       const stdData = s3ChartData['Standard'] || []
       if (stdData.length === 0) return { chartData: [], stats: {}, usedGranularity: 'monthly' }
@@ -142,7 +152,7 @@ function App() {
       const first = stdData[0]
       const change = ((latest.value - first.value) / first.value * 100)
       const changeClass = change >= 0 ? 'up' : 'down'
-      const icon = change >= 0 ? '\u25B2' : '\u25BC'
+      const icon = change >= 0 ? '▲' : '▼'
       const allVals = stdData.map(d => d.value)
       const totalClasses = Object.keys(s3ChartData).length
       return {
@@ -165,7 +175,7 @@ function App() {
       const first = computeData[0]
       const change = ((latest.value - first.value) / first.value * 100)
       const changeClass = change >= 0 ? 'up' : 'down'
-      const icon = change >= 0 ? '\u25B2' : '\u25BC'
+      const icon = change >= 0 ? '▲' : '▼'
       return {
         chartData: [],
         usedGranularity: 'monthly',
@@ -186,7 +196,7 @@ function App() {
       const first = mysqlData[0]
       const change = ((latest.value - first.value) / first.value * 100)
       const changeClass = change >= 0 ? 'up' : 'down'
-      const icon = change >= 0 ? '\u25B2' : '\u25BC'
+      const icon = change >= 0 ? '▲' : '▼'
       return {
         chartData: [],
         usedGranularity: 'monthly',
@@ -207,7 +217,7 @@ function App() {
       const first = gp3Data[0]
       const change = ((latest.value - first.value) / first.value * 100)
       const changeClass = change >= 0 ? 'up' : 'down'
-      const icon = change >= 0 ? '\u25B2' : '\u25BC'
+      const icon = change >= 0 ? '▲' : '▼'
       return {
         chartData: [],
         usedGranularity: 'monthly',
@@ -228,7 +238,7 @@ function App() {
       const first = egressData[0]
       const change = ((latest.value - first.value) / first.value * 100)
       const changeClass = change >= 0 ? 'up' : 'down'
-      const icon = change >= 0 ? '\u25B2' : '\u25BC'
+      const icon = change >= 0 ? '▲' : '▼'
       return {
         chartData: [],
         usedGranularity: 'monthly',
@@ -242,62 +252,65 @@ function App() {
       }
     }
 
-    if (!instance || !regionLoaded) return { chartData: [], stats: {}, usedGranularity: granularity }
+    if (!instance || !instanceLoaded) return { chartData: [], stats: {}, usedGranularity: granularity, visibleRange: null }
 
     const result = getInstanceData(instance, provider, region, granularity)
-    let data = result.data
+    const full = result.data
+    if (full.length === 0) return { chartData: [], stats: {}, usedGranularity: result.actualGranularity, visibleRange: null }
 
-    if (data.length === 0) return { chartData: [], stats: {}, usedGranularity: result.actualGranularity }
-
+    // Compute the visible window from the range preset (chart still pans freely).
+    const lastDate = full[full.length - 1].date
+    let windowData = full
+    let visRange = null
     if (timeRange !== 'all') {
-      const latestDate = new Date(data[data.length - 1].date)
-      const cutoff = new Date(latestDate)
+      const cutoff = new Date(lastDate)
       cutoff.setDate(cutoff.getDate() - timeRange)
       const cutoffStr = cutoff.toISOString().slice(0, 10)
-      data = data.filter(d => d.date >= cutoffStr)
+      windowData = full.filter(d => d.date >= cutoffStr)
+      visRange = { from: cutoffStr, to: lastDate }
     }
 
-    if (data.length === 0) return { chartData: [], stats: {}, usedGranularity: result.actualGranularity }
-
-    const latest = data[data.length - 1]
-    const first = data[0]
-    const change = ((latest.avg - first.avg) / first.avg * 100)
+    const statSrc = windowData.length ? windowData : full
+    const latest = statSrc[statSrc.length - 1]
+    const firstPt = statSrc[0]
+    const change = ((latest.avg - firstPt.avg) / firstPt.avg * 100)
     const changeClass = change >= 0 ? 'up' : 'down'
-    const icon = change >= 0 ? '\u25B2' : '\u25BC'
-    const allAvgs = data.map(d => d.avg)
+    const icon = change >= 0 ? '▲' : '▼'
+    const allAvgs = statSrc.map(d => d.avg)
 
     return {
-      chartData: data,
+      chartData: full,
       usedGranularity: result.actualGranularity,
+      visibleRange: visRange,
       stats: {
         price: `$${latest.avg.toFixed(4)}`,
         change: `${icon} ${Math.abs(change).toFixed(2)}%`,
         changeClass,
         range: `$${Math.min(...allAvgs).toFixed(4)} — $${Math.max(...allAvgs).toFixed(4)}`,
-        granularity: `${GRANULARITY_LABELS[result.actualGranularity]} (${data.length} pts)`,
+        granularity: `${GRANULARITY_LABELS[result.actualGranularity]} (${statSrc.length} pts)`,
       },
     }
-  }, [isS3, isLambda, isRDS, isEBS, isTransfer, s3ChartData, lambdaChartData, rdsChartData, ebsChartData, transferChartData, instance, provider, region, granularity, timeRange, regionLoaded, getInstanceData])
+  }, [isS3, isLambda, isRDS, isEBS, isTransfer, s3ChartData, lambdaChartData, rdsChartData, ebsChartData, transferChartData, instance, provider, region, granularity, timeRange, instanceLoaded, getInstanceData])
 
   const getExportData = useCallback(() => {
     return chartData.map(d => ({
-      date: d.date, instance_type: d.instance_type, region,
+      date: d.date, instance_type: instance, region,
       open: d.open, high: d.high, low: d.low, close: d.close, avg: d.avg,
     }))
-  }, [chartData, region])
+  }, [chartData, instance, region])
 
   const onDemandData = useMemo(() => {
-    if (!isEC2 || !isAWS || !instance || !regionLoaded) return []
+    if (!isEC2 || !isAWS || !instance || !instanceLoaded) return []
     return getOnDemandData(instance, provider, region)
-  }, [isEC2, isAWS, instance, provider, region, regionLoaded])
+  }, [isEC2, isAWS, instance, provider, region, instanceLoaded])
 
   const riDataMemo = useMemo(() => {
-    if (!isEC2 || !isAWS || !instance || !regionLoaded) return null
+    if (!isEC2 || !isAWS || !instance || !instanceLoaded) return null
     return {
       ri1yNoUpfront: getRIData(instance, provider, region, 'ri_1y_no_upfront_standard'),
       ri3yNoUpfront: getRIData(instance, provider, region, 'ri_3y_no_upfront_standard'),
     }
-  }, [isEC2, isAWS, instance, provider, region, regionLoaded])
+  }, [isEC2, isAWS, instance, provider, region, instanceLoaded])
 
   // Build sidebar items
   const instances = (meta[provider] && meta[provider][region]) || []
@@ -349,6 +362,7 @@ function App() {
           chartType={chartType}
           activeIndicators={isEC2 ? activeIndicators : new Set()}
           granularity={usedGranularity}
+          visibleRange={isEC2 ? visibleRange : null}
           instance={isS3 ? 'S3' : isLambda ? 'Lambda' : isRDS ? rdsType : isEBS ? 'EBS' : isTransfer ? 'Transfer' : instance}
           region={region}
           onDemandData={onDemandData}
