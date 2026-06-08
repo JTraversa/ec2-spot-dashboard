@@ -22,14 +22,6 @@ const OUT = path.join(__dirname, 'public', 'data');
 // Any range that comes back at (or above) the cap is incomplete and must be split.
 const CAP = 500000;
 
-// The app picks granularity by time range (daily ≤3M, weekly ≤1Y, monthly = ALL),
-// so older fine-grained data is never displayed. Trim each granularity to the
-// window that actually uses it (plus a buffer) to keep the shipped JSON small —
-// full daily history would be >100MB/region and exceed GitHub's file limit.
-const DAILY_KEEP_DAYS = 120;   // covers the 90-day (3M) daily view
-const WEEKLY_KEEP_DAYS = 400;  // covers the 365-day (1Y) weekly view
-// monthly is kept in full (ALL view) — it's small.
-
 // Popular Azure instances curated from SpotLake data (Standard_ prefix dropped)
 const AZURE_INSTANCES = [
   // General purpose — D series (Intel)
@@ -239,11 +231,11 @@ function makeAccumulator() {
       .map(([t, e]) => ({ t, p: e.price }))
       .sort((a, b) => a.t.localeCompare(b.t));
 
-    // Rollups are built from the FULL daily history above; only the shipped
-    // daily/weekly arrays are trimmed to their display windows.
+    // Full history at every granularity — per-instance files are tiny even
+    // untrimmed, so no display-window trimming is needed (the chart zooms).
     return {
-      daily: trimByDate(dailyArr, DAILY_KEEP_DAYS),
-      weekly: trimByDate(rollup(weeklyMap), WEEKLY_KEEP_DAYS),
+      daily: dailyArr,
+      weekly: rollup(weeklyMap),
       monthly: rollup(monthlyMap),
       ondemand: ondemandArr,
       meta: metaItems,
@@ -251,15 +243,6 @@ function makeAccumulator() {
   }
 
   return { ingest, finalize };
-}
-
-// Keep only records within `keepDays` of the latest date (arrays are date-sorted).
-function trimByDate(arr, keepDays) {
-  if (arr.length === 0) return arr;
-  const max = new Date(arr[arr.length - 1].date + 'T00:00:00Z');
-  max.setUTCDate(max.getUTCDate() - keepDays);
-  const cutoff = max.toISOString().slice(0, 10);
-  return arr.filter(d => d.date >= cutoff);
 }
 
 // Collapse a per-day on-demand series to change-points, anchoring the last
@@ -333,21 +316,21 @@ async function collectRegion(provider, region, cfg) {
     try {
       const prog = JSON.parse(fs.readFileSync(progressFile, 'utf8'));
       processedRanges = new Set(prog.processed || []);
-      // Reload daily to re-hydrate the accumulator isn't easy, so we just track
-      // processed ranges and re-use whatever we saved last time
-      const dailyFile = path.join(regionDir, 'daily.json');
-      if (fs.existsSync(dailyFile)) {
-        const saved = JSON.parse(fs.readFileSync(dailyFile, 'utf8'));
-        for (const d of saved) {
-          // Re-inject as single-sample events to restore accumulator state
-          for (let i = 0; i < d.samples; i++) acc.ingest([{
-            Time: d.date + 'T00:00:00+00:00',
-            InstanceType: d.instance_type,
-            SpotPrice: d.avg,
-            OndemandPrice: 0,
-          }]);
+      // Re-hydrate the accumulator from existing per-instance daily history so a
+      // resumed run keeps prior data (one event per day-record restores the avg;
+      // OHLC for already-finished days collapses to avg, as it did before).
+      const instDir = path.join(regionDir, 'inst');
+      if (fs.existsSync(instDir)) {
+        let count = 0;
+        for (const f of fs.readdirSync(instDir)) {
+          const type = f.replace(/\.json$/, '');
+          const data = JSON.parse(fs.readFileSync(path.join(instDir, f), 'utf8'));
+          for (const d of data.daily || []) {
+            acc.ingest([{ Time: d.date + 'T00:00:00+00:00', InstanceType: type, SpotPrice: d.avg, OndemandPrice: 0 }]);
+            count++;
+          }
         }
-        console.log(`  Resuming with ${saved.length} existing daily records, ${processedRanges.size} ranges done`);
+        console.log(`  Resuming with ${count} existing daily records, ${processedRanges.size} ranges done`);
       }
     } catch {
       processedRanges = new Set();
@@ -385,12 +368,22 @@ async function collectRegion(provider, region, cfg) {
   }
 
   fs.mkdirSync(regionDir, { recursive: true });
-  fs.writeFileSync(path.join(regionDir, 'daily.json'), JSON.stringify(daily));
-  fs.writeFileSync(path.join(regionDir, 'weekly.json'), JSON.stringify(weekly));
-  fs.writeFileSync(path.join(regionDir, 'monthly.json'), JSON.stringify(monthly));
+  // One file per instance holding its full daily/weekly/monthly history. Tiny
+  // each (~tens of KB), so the chart loads a single instance instead of a 19MB
+  // all-instances blob — and keeps full history for client-side zoom.
+  const instDir = path.join(regionDir, 'inst');
+  fs.rmSync(instDir, { recursive: true, force: true });
+  fs.mkdirSync(instDir, { recursive: true });
+  const slim = r => ({ date: r.date, open: r.open, high: r.high, low: r.low, close: r.close, avg: r.avg });
+  const byInst = new Map();
+  const bucket = t => { let b = byInst.get(t); if (!b) { b = { daily: [], weekly: [], monthly: [] }; byInst.set(t, b); } return b; };
+  for (const r of daily) bucket(r.instance_type).daily.push(slim(r));
+  for (const r of weekly) bucket(r.instance_type).weekly.push(slim(r));
+  for (const r of monthly) bucket(r.instance_type).monthly.push(slim(r));
+  for (const [type, data] of byInst) fs.writeFileSync(path.join(instDir, `${type}.json`), JSON.stringify(data));
   fs.writeFileSync(path.join(regionDir, 'ondemand.json'), JSON.stringify(ondemand));
 
-  console.log(`  ✓ ${slug}: ${daily.length} daily records, ${meta.length} instances, ${newEvents} new events`);
+  console.log(`  ✓ ${slug}: ${byInst.size} instance files, ${daily.length} daily records, ${newEvents} new events`);
   return { slug, meta };
 }
 

@@ -1,11 +1,19 @@
 import { exportCSV, exportJSON } from '../utils/export'
 
+// Range (visible window) and resolution (bar size) are independent controls —
+// the chart loads the full per-instance history, so any combination is valid.
 const RANGES = [
-  { label: '1W', range: 7, granularity: 'daily' },
-  { label: '1M', range: 30, granularity: 'daily' },
-  { label: '3M', range: 90, granularity: 'daily' },
-  { label: '1Y', range: 365, granularity: 'weekly' },
-  { label: 'ALL', range: 'all', granularity: 'monthly' },
+  { label: '1W', range: 7 },
+  { label: '1M', range: 30 },
+  { label: '3M', range: 90 },
+  { label: '1Y', range: 365 },
+  { label: 'ALL', range: 'all' },
+]
+
+const RESOLUTIONS = [
+  { label: 'D', value: 'daily' },
+  { label: 'W', value: 'weekly' },
+  { label: 'M', value: 'monthly' },
 ]
 
 const INDICATORS = [
@@ -83,7 +91,23 @@ export default function Controls({
               key={r.label}
               className={timeRange === r.range ? 'active' : ''}
               disabled={isS3}
-              onClick={() => { setTimeRange(r.range); setGranularity(r.granularity) }}
+              onClick={() => setTimeRange(r.range)}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="control-group">
+        <label>Resolution</label>
+        <div className="btn-group">
+          {RESOLUTIONS.map(r => (
+            <button
+              key={r.value}
+              className={granularity === r.value ? 'active' : ''}
+              disabled={isS3}
+              onClick={() => setGranularity(r.value)}
             >
               {r.label}
             </button>

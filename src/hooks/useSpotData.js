@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 
 const BASE = import.meta.env.BASE_URL + 'data'
+const today = () => new Date().toISOString().slice(0, 10)
 
 export function useSpotData() {
   const [meta, setMeta] = useState({ aws: {}, gcp: {}, azure: {} })
@@ -12,70 +13,55 @@ export function useSpotData() {
       fetch(`${BASE}/aws/meta.json`).then(r => r.ok ? r.json() : {}).catch(() => ({})),
       fetch(`${BASE}/gcp/meta.json`).then(r => r.ok ? r.json() : {}).catch(() => ({})),
       fetch(`${BASE}/azure/meta.json`).then(r => r.ok ? r.json() : {}).catch(() => ({})),
-    ]).then(([aws, gcp, azure]) => {
-      setMeta({ aws, gcp, azure })
-    }).finally(() => setLoading(false))
+    ]).then(([aws, gcp, azure]) => setMeta({ aws, gcp, azure }))
+      .finally(() => setLoading(false))
   }, [])
 
+  // Per-region data: the on-demand series + (AWS only) list-price overlays.
+  // The spot price series itself is NOT loaded here — it's per instance.
   async function loadRegion(provider, region) {
-    const key = `${provider}/${region}/daily`
+    const key = `${provider}/${region}/_region`
     if (cache.current[key]) return
-
     const base = `${BASE}/${provider}/${region}`
-    const [d, w, m] = await Promise.all([
-      fetch(`${base}/daily.json`).then(r => r.json()),
-      fetch(`${base}/weekly.json`).then(r => r.json()),
-      fetch(`${base}/monthly.json`).then(r => r.json()),
-    ])
-    cache.current[`${provider}/${region}/daily`] = d
-    cache.current[`${provider}/${region}/weekly`] = w
-    cache.current[`${provider}/${region}/monthly`] = m
-
-    // AWS-only supplemental data
+    const ondemand = await fetch(`${base}/ondemand.json`).then(r => r.ok ? r.json() : []).catch(() => [])
+    cache.current[`${provider}/${region}/ondemand`] = ondemand
     if (provider === 'aws') {
-      try {
-        const [od, ri, s3, lambda, rds, ebs, transfer] = await Promise.all([
-          fetch(`${base}/ondemand.json`).then(r => r.ok ? r.json() : []),
-          fetch(`${base}/ri.json`).then(r => r.ok ? r.json() : []),
-          fetch(`${base}/s3.json`).then(r => r.ok ? r.json() : []),
-          fetch(`${base}/lambda.json`).then(r => r.ok ? r.json() : []),
-          fetch(`${base}/rds.json`).then(r => r.ok ? r.json() : []),
-          fetch(`${base}/ebs.json`).then(r => r.ok ? r.json() : []),
-          fetch(`${base}/transfer.json`).then(r => r.ok ? r.json() : []),
-        ])
-        cache.current[`${provider}/${region}/ondemand`] = od
-        cache.current[`${provider}/${region}/ri`] = ri
-        cache.current[`${provider}/${region}/s3`] = s3
-        cache.current[`${provider}/${region}/lambda`] = lambda
-        cache.current[`${provider}/${region}/rds`] = rds
-        cache.current[`${provider}/${region}/ebs`] = ebs
-        cache.current[`${provider}/${region}/transfer`] = transfer
-
-        const storageComp = await fetch(`${base}/storage_comparison.json`).then(r => r.ok ? r.json() : {}).catch(() => ({}))
-        cache.current[`${provider}/${region}/storage_comparison`] = storageComp
-      } catch {
-        for (const t of ['ondemand', 'ri', 's3', 'lambda', 'rds', 'ebs', 'transfer', 'storage_comparison']) {
-          cache.current[`${provider}/${region}/${t}`] = t === 'storage_comparison' ? {} : []
-        }
-      }
+      const names = ['ri', 's3', 'lambda', 'rds', 'ebs', 'transfer']
+      const results = await Promise.all(names.map(n =>
+        fetch(`${base}/${n}.json`).then(r => r.ok ? r.json() : []).catch(() => [])))
+      names.forEach((n, i) => { cache.current[`${provider}/${region}/${n}`] = results[i] })
+      const sc = await fetch(`${base}/storage_comparison.json`).then(r => r.ok ? r.json() : {}).catch(() => ({}))
+      cache.current[`${provider}/${region}/storage_comparison`] = sc
     }
+    cache.current[key] = true
   }
 
-  function getData(provider, region, gran) {
-    return cache.current[`${provider}/${region}/${gran}`] || []
+  // Spot history for one instance: { daily, weekly, monthly } — full range each.
+  async function loadInstance(provider, region, inst) {
+    const key = `${provider}/${region}/inst/${inst}`
+    if (cache.current[key]) return
+    const empty = { daily: [], weekly: [], monthly: [] }
+    const data = await fetch(`${BASE}/${provider}/${region}/inst/${encodeURIComponent(inst)}.json`)
+      .then(r => r.ok ? r.json() : empty).catch(() => empty)
+    cache.current[key] = data
   }
 
+  function instanceData(provider, region, inst) {
+    return cache.current[`${provider}/${region}/inst/${inst}`] || null
+  }
+
+  function instanceLatestDate(provider, region, inst) {
+    const d = instanceData(provider, region, inst)
+    return d && d.daily.length ? d.daily[d.daily.length - 1].date : ''
+  }
+
+  // Full series for the requested granularity, falling back to a coarser one if
+  // the instance has no rows at that resolution.
   function getInstanceData(inst, provider, region, granularity) {
-    const fallbackOrder = [granularity, 'daily', 'weekly', 'monthly']
-    const seen = new Set()
-    for (const gran of fallbackOrder) {
-      if (seen.has(gran)) continue
-      seen.add(gran)
-      const data = getData(provider, region, gran)
-      const instData = data
-        .filter(d => d.instance_type === inst)
-        .sort((a, b) => a.date.localeCompare(b.date))
-      if (instData.length > 0) return { data: instData, actualGranularity: gran }
+    const d = instanceData(provider, region, inst)
+    if (!d) return { data: [], actualGranularity: granularity }
+    for (const g of [granularity, 'daily', 'weekly', 'monthly']) {
+      if (d[g] && d[g].length) return { data: d[g], actualGranularity: g }
     }
     return { data: [], actualGranularity: granularity }
   }
@@ -89,17 +75,12 @@ export function useSpotData() {
     })
   }
 
-  // Overlay files (RI/S3/Lambda/RDS/EBS/transfer) are sparse change-point series
-  // that end at the last price change — often well before "now". Carry the last
-  // known value forward to the latest spot date so the line spans the chart
-  // instead of stopping mid-range. (daily.json is date-sorted, so the last row
-  // is the latest date.)
-  function anchorToLatest(series, provider, region) {
-    if (series.length === 0) return series
-    const daily = cache.current[`${provider}/${region}/daily`] || []
-    const latest = daily.length ? daily[daily.length - 1].date : ''
+  // Overlay files are sparse change-point series ending at the last price change.
+  // Carry the last value forward to `latestDate` so the line spans the chart.
+  function anchorToLatest(series, latestDate) {
+    if (series.length === 0 || !latestDate) return series
     const last = series[series.length - 1]
-    if (latest && latest > last.time) return [...series, { time: latest, value: last.value }]
+    if (latestDate > last.time) return [...series, { time: latestDate, value: last.value }]
     return series
   }
 
@@ -109,7 +90,7 @@ export function useSpotData() {
       .filter(d => d.instance_type === inst)
       .sort((a, b) => a.date.localeCompare(b.date))
       .map(d => ({ time: d.date, value: d.price }))
-    return anchorToLatest(dedupeByDate(mapped), provider, region)
+    return anchorToLatest(dedupeByDate(mapped), instanceLatestDate(provider, region, inst))
   }
 
   function getRIData(inst, provider, region, riType) {
@@ -118,7 +99,7 @@ export function useSpotData() {
       .filter(d => d.instance_type === inst && d.ri_type === riType)
       .sort((a, b) => a.date.localeCompare(b.date))
       .map(d => ({ time: d.date, value: d.price }))
-    return anchorToLatest(dedupeByDate(mapped), provider, region)
+    return anchorToLatest(dedupeByDate(mapped), instanceLatestDate(provider, region, inst))
   }
 
   function getS3Data(provider, region, storageClass) {
@@ -127,7 +108,7 @@ export function useSpotData() {
       .filter(d => d.storage_class === storageClass)
       .sort((a, b) => a.date.localeCompare(b.date))
       .map(d => ({ time: d.date, value: d.price }))
-    return anchorToLatest(dedupeByDate(mapped), provider, region)
+    return anchorToLatest(dedupeByDate(mapped), today())
   }
 
   function getS3Classes(provider, region) {
@@ -141,7 +122,7 @@ export function useSpotData() {
       .filter(d => d.category === category)
       .sort((a, b) => a.date.localeCompare(b.date))
       .map(d => ({ time: d.date, value: d.price }))
-    return anchorToLatest(dedupeByDate(mapped), provider, region)
+    return anchorToLatest(dedupeByDate(mapped), today())
   }
 
   function getLambdaCategories(provider, region) {
@@ -155,7 +136,7 @@ export function useSpotData() {
       .filter(d => d.instance_type === instanceType && d.engine === engine)
       .sort((a, b) => a.date.localeCompare(b.date))
       .map(d => ({ time: d.date, value: d.price }))
-    return anchorToLatest(dedupeByDate(mapped), provider, region)
+    return anchorToLatest(dedupeByDate(mapped), today())
   }
 
   function getRDSInstances(provider, region) {
@@ -178,7 +159,7 @@ export function useSpotData() {
       .filter(d => d.volume_type === volumeType)
       .sort((a, b) => a.date.localeCompare(b.date))
       .map(d => ({ time: d.date, value: d.price }))
-    return anchorToLatest(dedupeByDate(mapped), provider, region)
+    return anchorToLatest(dedupeByDate(mapped), today())
   }
 
   function getEBSTypes(provider, region) {
@@ -194,7 +175,7 @@ export function useSpotData() {
       .filter(d => d.transfer_type === transferType)
       .sort((a, b) => a.date.localeCompare(b.date))
       .map(d => ({ time: d.date, value: d.price }))
-    return anchorToLatest(dedupeByDate(mapped), provider, region)
+    return anchorToLatest(dedupeByDate(mapped), today())
   }
 
   function getTransferTypes(provider, region) {
@@ -204,21 +185,13 @@ export function useSpotData() {
     return order.filter(t => found.includes(t))
   }
 
+  // Sidebar list comes straight from meta (instance type + latest spot price).
   function getAllRegionInstances(provider, region) {
-    const daily = cache.current[`${provider}/${region}/daily`] || []
-    if (daily.length === 0) return []
-    const latest = new Map()
-    for (const r of daily) {
-      const cur = latest.get(r.instance_type)
-      if (!cur || r.date > cur.date) latest.set(r.instance_type, r)
-    }
-    return [...latest.entries()]
-      .map(([t, r]) => ({ t, p: r.avg }))
-      .sort((a, b) => a.t.localeCompare(b.t))
+    return (meta[provider] && meta[provider][region]) || []
   }
 
   return {
-    meta, loading, loadRegion, getAllRegionInstances,
+    meta, loading, loadRegion, loadInstance, getAllRegionInstances,
     getInstanceData, getOnDemandData, getRIData,
     getS3Data, getS3Classes,
     getLambdaData, getLambdaCategories,

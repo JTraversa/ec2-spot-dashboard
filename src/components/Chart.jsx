@@ -52,7 +52,7 @@ const TRANSFER_COLORS = {
 const AZURE_COLOR = '#0078d4'
 const GCP_COLOR = '#34a853'
 
-export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, transferData, chartType, activeIndicators, granularity, instance, region, onDemandData, riData, isS3, isLambda, isRDS, isEBS, isTransfer, storageComparison }) {
+export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, transferData, chartType, activeIndicators, granularity, visibleRange, instance, region, onDemandData, riData, isS3, isLambda, isRDS, isEBS, isTransfer, storageComparison }) {
   const containerRef = useRef(null)
   const chartRef = useRef(null)
   const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'dark')
@@ -356,7 +356,14 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
         .setData(riData.ri3yNoUpfront)
     }
 
-    chart.timeScale().fitContent()
+    // Full history is loaded; the range preset just frames the initial window
+    // (the user can still pan/zoom across everything). ALL → fit the whole span.
+    if (visibleRange) {
+      try { chart.timeScale().setVisibleRange(visibleRange) }
+      catch { chart.timeScale().fitContent() }
+    } else {
+      chart.timeScale().fitContent()
+    }
 
     const ro = new ResizeObserver(() => {
       if (containerRef.current) {
@@ -373,7 +380,19 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
       chart.remove()
       chartRef.current = null
     }
-  }, [data, s3Data, lambdaData, rdsData, ebsData, transferData, isS3, isLambda, isRDS, isEBS, isTransfer, chartType, activeIndicators, granularity, theme, onDemandData, riData, hiddenS3Classes])
+  }, [data, s3Data, lambdaData, rdsData, ebsData, transferData, isS3, isLambda, isRDS, isEBS, isTransfer, chartType, activeIndicators, granularity, theme, onDemandData, riData, hiddenS3Classes])  // eslint-disable-line react-hooks/exhaustive-deps -- visibleRange applied in its own effect
+
+  // Range-preset changes only move the viewport — no need to rebuild the chart.
+  useEffect(() => {
+    const chart = chartRef.current
+    if (!chart || !data || data.length === 0) return
+    if (visibleRange) {
+      try { chart.timeScale().setVisibleRange(visibleRange) }
+      catch { chart.timeScale().fitContent() }
+    } else {
+      chart.timeScale().fitContent()
+    }
+  }, [visibleRange, data])
 
   return (
     <div className="chart-area">
