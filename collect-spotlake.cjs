@@ -158,6 +158,9 @@ function makeAccumulator() {
       const date = r.Time.slice(0, 10);
       const inst = r.InstanceType;
       const p = r.SpotPrice;
+      // TITANS emits -1/0 as a "no price" sentinel — skip so it can't corrupt
+      // the day's open/high/low/close/avg.
+      if (!(p > 0)) continue;
       const key = `${inst}::${date}`;
 
       // Running OHLC + sum/count keeps memory bounded by the number of daily
