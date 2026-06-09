@@ -380,6 +380,32 @@ async function collectRegion(provider, region, cfg) {
   for (const r of daily) bucket(r.instance_type).daily.push(slim(r));
   for (const r of weekly) bucket(r.instance_type).weekly.push(slim(r));
   for (const r of monthly) bucket(r.instance_type).monthly.push(slim(r));
+
+  // Merge the pre-2024 monthly archive (USC/ISI EC2 Spot Price Archive). TITANS
+  // only serves ~2024+, so WITHOUT this a clean re-collect silently drops the
+  // entire 2014–2023 history. The seed lives in monthly-archive.json (committed).
+  const archiveFile = path.join(regionDir, 'monthly-archive.json');
+  if (fs.existsSync(archiveFile)) {
+    const byArch = new Map();
+    for (const r of JSON.parse(fs.readFileSync(archiveFile, 'utf8'))) {
+      if (!byArch.has(r.instance_type)) byArch.set(r.instance_type, []);
+      byArch.get(r.instance_type).push(slim(r));
+    }
+    const metaTypes = new Set(meta.map(m => m.t));
+    let merged = 0;
+    for (const [type, arr] of byArch) {
+      const b = bucket(type);  // creates an entry for retired instances (e.g. g2.2xlarge)
+      const firstCurrent = b.monthly.length ? b.monthly[0].date : '9999-99';
+      const pre = arr.filter(r => r.date < firstCurrent).sort((a, c) => a.date.localeCompare(c.date));
+      if (pre.length === 0) continue;
+      b.monthly = pre.concat(b.monthly);
+      merged += pre.length;
+      if (!metaTypes.has(type)) { meta.push({ t: type, p: pre[pre.length - 1].avg }); metaTypes.add(type); }
+    }
+    meta.sort((a, c) => a.t.localeCompare(c.t));
+    console.log(`    + merged ${merged} pre-2024 archive monthly records`);
+  }
+
   for (const [type, data] of byInst) fs.writeFileSync(path.join(instDir, `${type}.json`), JSON.stringify(data));
   fs.writeFileSync(path.join(regionDir, 'ondemand.json'), JSON.stringify(ondemand));
 
