@@ -28,3 +28,7 @@ public/data/**/.cache.json
 
 # AWS Price List download cache (regenerable)
 .pricing-cache/
+
+# Claude Code working docs (local only)
+CLAUDE.md
+HANDOFF.md

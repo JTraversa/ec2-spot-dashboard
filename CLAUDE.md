@@ -8,23 +8,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 npm install
-npm run dev      # vite dev server (note: app is served under the /aws/ base path)
+npm run dev      # vite dev server — app is served under the /cloud-pricing/ base path (http://localhost:5173/cloud-pricing/)
 npm run build    # vite build -> dist/
 npm run lint     # eslint .
 npm run preview  # serve the built dist/
 
-node collect-spotlake.cjs          # refresh daily/weekly/monthly/ondemand/meta for ALL providers
+node collect-spotlake.cjs          # refresh spot daily/weekly/monthly/ondemand/meta for ALL providers
 node collect-spotlake.cjs aws      # single provider: aws | gcp | azure
+node collect-pricing.cjs           # refresh AWS list-price overlays (s3/lambda/transfer/rds/ebs/ri.json)
 ```
 
-There is no test suite. There is no `npm run collect` script — invoke the collector with `node` directly.
+There is no test suite. There are no `npm run collect`/`collect:pricing` scripts — invoke each collector with `node` directly.
 
 ## Architecture
 
 Static-data dashboard: a React 19 SPA that reads pre-built JSON from `public/data/` at runtime. There is **no backend** and the app never calls any upstream API. Refreshing data = run the collector, then redeploy (Vercel).
 
-### `/aws/` base path — easy to trip over
-`vite.config.js` sets `base: '/aws/'`, and `vercel.json` redirects `/` → `/aws` and rewrites `/aws/*` to the SPA. All data fetches go through `import.meta.env.BASE_URL + 'data'` (see `useSpotData.js`), so assets and fetch URLs only resolve correctly under that prefix. When adding fetches or links, use `BASE_URL`/relative paths — never hardcode a leading `/data`.
+### `/cloud-pricing/` base path — easy to trip over
+`vite.config.js` sets `base: '/cloud-pricing/'`, and `vercel.json` redirects `/` → `/cloud-pricing` and rewrites `/cloud-pricing/*` to the SPA. The old `/aws` and `/aws/*` routes are kept as redirects to `/cloud-pricing` (the project was renamed "AWS Spot" → "Historical Cloud Pricing"; the repo/dir name `ec2-spot-dashboard` is unchanged). All data fetches go through `import.meta.env.BASE_URL + 'data'` (see `useSpotData.js`), so assets and fetch URLs only resolve correctly under that prefix. When adding fetches or links, use `BASE_URL`/relative paths — never hardcode a leading `/data`.
 
 ### Data layer: `src/hooks/useSpotData.js`
 This single hook is the entire data access layer; `App.jsx` is just a state/orchestration shell around it.
@@ -64,3 +65,4 @@ Collector details worth knowing:
 
 ### Charting
 `Chart.jsx` uses **lightweight-charts v5** (TradingView). Technical indicators (SMA, Bollinger, gap-fill) are computed in `src/utils/indicators.js`; CSV export is in `src/utils/export.js`.
+- **Time range and resolution (D/W/M) are independent controls** (`Controls.jsx`). The app loads an instance's full series once and the time-range buttons **zoom client-side via `setVisibleRange()`** — they do not swap or re-fetch data.

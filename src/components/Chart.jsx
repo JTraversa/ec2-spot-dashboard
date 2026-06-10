@@ -52,7 +52,7 @@ const TRANSFER_COLORS = {
 const AZURE_COLOR = '#0078d4'
 const GCP_COLOR = '#34a853'
 
-export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, transferData, chartType, activeIndicators, granularity, visibleRange, instance, region, onDemandData, riData, isS3, isLambda, isRDS, isEBS, isTransfer, storageComparison }) {
+export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, transferData, chartType, activeIndicators, granularity, visibleRange, denseFrom, instance, region, onDemandData, riData, isS3, isLambda, isRDS, isEBS, isTransfer, storageComparison }) {
   const containerRef = useRef(null)
   const chartRef = useRef(null)
   const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'dark')
@@ -289,7 +289,7 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
     }
 
     const linePoints = data.map(d => ({ time: d.date, value: d.avg }))
-    const filled = fillTimeGaps(linePoints, granularity)
+    const filled = fillTimeGaps(linePoints, granularity, denseFrom)
     const chartData = filled.map(d => ({ time: d.time, value: d.noData ? undefined : d.value }))
 
     let mainSeries
@@ -308,7 +308,11 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
 
     // Indicators
     if (activeIndicators.size > 0) {
-      const realData = data.map(d => ({ time: d.date, value: d.avg }))
+      // Indicators only make sense on the dense native series — skip the sparse
+      // pre-2024 monthly tail that may be prepended for daily/weekly views.
+      const realData = data
+        .filter(d => !denseFrom || d.date >= denseFrom)
+        .map(d => ({ time: d.date, value: d.avg }))
 
       const smaConfigs = [
         { key: 'sma7', period: 7 },
@@ -381,7 +385,7 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
       chart.remove()
       chartRef.current = null
     }
-  }, [data, s3Data, lambdaData, rdsData, ebsData, transferData, isS3, isLambda, isRDS, isEBS, isTransfer, chartType, activeIndicators, granularity, theme, onDemandData, riData, hiddenS3Classes])  // eslint-disable-line react-hooks/exhaustive-deps -- visibleRange applied in its own effect
+  }, [data, s3Data, lambdaData, rdsData, ebsData, transferData, isS3, isLambda, isRDS, isEBS, isTransfer, chartType, activeIndicators, granularity, denseFrom, theme, onDemandData, riData, hiddenS3Classes])  // eslint-disable-line react-hooks/exhaustive-deps -- visibleRange applied in its own effect
 
   // Range-preset changes only move the viewport — no need to rebuild the chart.
   useEffect(() => {

@@ -155,7 +155,7 @@ function App() {
   // EC2/spot chart data + stats. The chart receives the FULL series; the range
   // preset only sets the initial visible window (the chart can still pan/zoom),
   // and stats are computed over that window.
-  const { chartData, stats, usedGranularity, visibleRange } = useMemo(() => {
+  const { chartData, stats, usedGranularity, visibleRange, denseFrom } = useMemo(() => {
     if (isS3) {
       const stdData = s3ChartData['Standard'] || []
       if (stdData.length === 0) return { chartData: [], stats: {}, usedGranularity: 'monthly' }
@@ -263,11 +263,11 @@ function App() {
       }
     }
 
-    if (!instance || !instanceLoaded) return { chartData: [], stats: {}, usedGranularity: granularity, visibleRange: null }
+    if (!instance || !instanceLoaded) return { chartData: [], stats: {}, usedGranularity: granularity, visibleRange: null, denseFrom: null }
 
     const result = getInstanceData(instance, provider, region, granularity)
     const full = result.data
-    if (full.length === 0) return { chartData: [], stats: {}, usedGranularity: result.actualGranularity, visibleRange: null }
+    if (full.length === 0) return { chartData: [], stats: {}, usedGranularity: result.actualGranularity, visibleRange: null, denseFrom: null }
 
     // Compute the visible window from the range preset (chart still pans freely).
     const lastDate = full[full.length - 1].date
@@ -293,6 +293,7 @@ function App() {
       chartData: full,
       usedGranularity: result.actualGranularity,
       visibleRange: visRange,
+      denseFrom: result.denseFrom,
       stats: {
         price: `$${latest.avg.toFixed(4)}`,
         change: `${icon} ${Math.abs(change).toFixed(2)}%`,
@@ -374,6 +375,7 @@ function App() {
           activeIndicators={isEC2 ? activeIndicators : new Set()}
           granularity={usedGranularity}
           visibleRange={isEC2 ? visibleRange : null}
+          denseFrom={isEC2 ? denseFrom : null}
           instance={isS3 ? 'S3' : isLambda ? 'Lambda' : isRDS ? rdsType : isEBS ? 'EBS' : isTransfer ? 'Transfer' : instance}
           region={region}
           onDemandData={onDemandData}

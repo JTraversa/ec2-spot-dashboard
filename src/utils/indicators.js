@@ -26,14 +26,19 @@ export function calcBollinger(data, period = 20, mult = 2) {
   return { upper, lower, mid }
 }
 
-export function fillTimeGaps(data, gran) {
+// `denseFrom` (a YYYY-MM-DD string) scopes gap-filling to the native dense
+// series: daily/weekly charts can be prefixed with sparse pre-2024 monthly
+// points, and filling those ~monthly gaps with "no data" whitespace would
+// shred the old line into dots. Points dated before `denseFrom` are left as
+// plain straight segments.
+export function fillTimeGaps(data, gran, denseFrom = null) {
   if (data.length < 2) return data
   const filled = []
   const maxGapDays = gran === 'monthly' ? 90 : gran === 'weekly' ? 21 : 3
 
   for (let i = 0; i < data.length; i++) {
     filled.push(data[i])
-    if (i < data.length - 1) {
+    if (i < data.length - 1 && (!denseFrom || data[i].time >= denseFrom)) {
       const curr = new Date(data[i].time)
       const next = new Date(data[i + 1].time)
       const gapDays = (next - curr) / (1000 * 60 * 60 * 24)

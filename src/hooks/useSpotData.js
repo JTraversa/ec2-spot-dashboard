@@ -57,13 +57,26 @@ export function useSpotData() {
 
   // Full series for the requested granularity, falling back to a coarser one if
   // the instance has no rows at that resolution.
+  //
+  // daily/weekly only go back to ~Feb 2024 (TITANS), but `monthly` carries the
+  // deep 2014→2023 archive. For daily/weekly we prepend the pre-range monthly
+  // points so the chart shows the full history as straight segments (no
+  // fabricated data). `denseFrom` marks where the native dense series begins so
+  // the gap-filler skips the sparse prepended tail.
   function getInstanceData(inst, provider, region, granularity) {
     const d = instanceData(provider, region, inst)
-    if (!d) return { data: [], actualGranularity: granularity }
+    if (!d) return { data: [], actualGranularity: granularity, denseFrom: null }
     for (const g of [granularity, 'daily', 'weekly', 'monthly']) {
-      if (d[g] && d[g].length) return { data: d[g], actualGranularity: g }
+      if (d[g] && d[g].length) {
+        if ((g === 'daily' || g === 'weekly') && d.monthly && d.monthly.length) {
+          const firstDense = d[g][0].date
+          const older = d.monthly.filter(m => m.date < firstDense)
+          if (older.length) return { data: [...older, ...d[g]], actualGranularity: g, denseFrom: firstDense }
+        }
+        return { data: d[g], actualGranularity: g, denseFrom: null }
+      }
     }
-    return { data: [], actualGranularity: granularity }
+    return { data: [], actualGranularity: granularity, denseFrom: null }
   }
 
   function dedupeByDate(arr) {
