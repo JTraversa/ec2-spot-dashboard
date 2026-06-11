@@ -1,0 +1,52 @@
+name: Collect pricing overlays
+
+# Refreshes the AWS Price List Bulk API list-price overlays
+# (s3/lambda/transfer/rds/ebs/ri.json). List prices change rarely, so this runs
+# monthly rather than weekly. No actions/cache for .pricing-cache: GitHub evicts
+# caches after 7 days of no access, so a 30-day cadence would always start cold
+# anyway — the FULL services (s3/lambda/transfer) just re-download their version
+# files each run. The commit is pushed to master → Vercel deploys.
+
+on:
+  schedule:
+    - cron: '23 6 1 * *'   # 1st of each month, 06:23 UTC
+  workflow_dispatch: {}
+
+concurrency:
+  group: collect-pricing
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Collect pricing overlays
+        run: node collect-pricing.cjs
+
+      - name: Commit & push refreshed overlays
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data
+          if git diff --cached --quiet; then
+            echo "No pricing changes — nothing to commit."
+            exit 0
+          fi
+          git commit -m "chore(data): monthly pricing overlay refresh"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            echo "push rejected, rebasing (attempt $attempt)…"
+            git pull --rebase origin master
+          done
+          echo "push failed after retries" >&2
+          exit 1

@@ -1,0 +1,52 @@
+name: Collect spot data
+
+# Refreshes the SpotLake/TITANS spot price data weekly. The collector resumes
+# from the committed .progress.json + inst/*.json (and merges the committed
+# monthly-archive.json seeds), so each run only fetches the new ~week. The
+# resulting commit is pushed to master, which triggers the Vercel deploy.
+
+on:
+  schedule:
+    - cron: '17 7 * * 1'   # Mondays 07:17 UTC
+  workflow_dispatch: {}      # allow manual runs from the Actions tab
+
+# Don't let two runs (e.g. a manual + scheduled) collide.
+concurrency:
+  group: collect-spot
+  cancel-in-progress: false
+
+permissions:
+  contents: write            # GITHUB_TOKEN needs write to push the data commit
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Collect spot data (all providers)
+        run: node collect-spotlake.cjs
+
+      - name: Commit & push refreshed data
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data
+          if git diff --cached --quiet; then
+            echo "No spot data changes — nothing to commit."
+            exit 0
+          fi
+          git commit -m "chore(data): weekly spot refresh"
+          # Retry around a concurrent push from the pricing workflow (disjoint files → clean rebase).
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            echo "push rejected, rebasing (attempt $attempt)…"
+            git pull --rebase origin master
+          done
+          echo "push failed after retries" >&2
+          exit 1
