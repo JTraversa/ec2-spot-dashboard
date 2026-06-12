@@ -26,33 +26,41 @@ export function calcBollinger(data, period = 20, mult = 2) {
   return { upper, lower, mid }
 }
 
-// `denseFrom` (a YYYY-MM-DD string) scopes gap-filling to the native dense
-// series: daily/weekly charts can be prefixed with sparse pre-2024 monthly
-// points, and filling those ~monthly gaps with "no data" whitespace would
-// shred the old line into dots. Points dated before `denseFrom` are left as
-// plain straight segments.
-export function fillTimeGaps(data, gran, denseFrom = null) {
-  if (data.length < 2) return data
-  const filled = []
-  const maxGapDays = gran === 'monthly' ? 90 : gran === 'weekly' ? 21 : 3
+const DAY_MS = 86400000
+const dateToTs = t => new Date(t + 'T00:00:00Z').getTime()
+const tsToDate = ts => new Date(ts).toISOString().slice(0, 10)
 
-  for (let i = 0; i < data.length; i++) {
-    filled.push(data[i])
-    if (i < data.length - 1 && (!denseFrom || data[i].time >= denseFrom)) {
-      const curr = new Date(data[i].time)
-      const next = new Date(data[i + 1].time)
-      const gapDays = (next - curr) / (1000 * 60 * 60 * 24)
-      if (gapDays > maxGapDays) {
-        const step = new Date(curr)
-        while (true) {
-          if (gran === 'monthly') step.setUTCMonth(step.getUTCMonth() + 1)
-          else if (gran === 'weekly') step.setUTCDate(step.getUTCDate() + 7)
-          else step.setUTCDate(step.getUTCDate() + 1)
-          if (step >= next) break
-          filled.push({ time: step.toISOString().slice(0, 10), value: undefined, noData: true })
-        }
-      }
+// Resample a sorted [{time:'YYYY-MM-DD', value}] series onto a uniform DAILY
+// grid. lightweight-charts uses an ordinal (index-based) time axis — every
+// point gets equal width regardless of the real time between it and its
+// neighbour — so a series mixing sparse pre-2024 monthly points with dense
+// 2024+ daily points renders with a wildly non-linear x-axis. Gridding to one
+// point per calendar day makes the axis proportional to real time.
+//
+// Between two consecutive real points we LINEAR-INTERPOLATE the filled days.
+// The fill is colinear with the straight segment the chart would draw anyway,
+// so the line looks identical — just positioned correctly in time — and stays
+// connected. Gaps longer than `breakGapDays` (default ~6 months) are emitted as
+// "no data" whitespace instead, so a genuine multi-month hole (e.g. a retired-
+// then-revived instance) shows as an honest, proportionally-sized blank rather
+// than a fabricated long trend line. Interpolated days carry `interp: true`.
+export function resampleProportional(data, breakGapDays = 183) {
+  if (data.length < 2) return data
+  const out = []
+  for (let i = 0; i < data.length - 1; i++) {
+    const a = data[i], b = data[i + 1]
+    out.push({ time: a.time, value: a.value })
+    const ta = dateToTs(a.time), tb = dateToTs(b.time)
+    const gapDays = Math.round((tb - ta) / DAY_MS)
+    if (gapDays <= 1) continue
+    const bridge = gapDays <= breakGapDays
+    for (let d = 1; d < gapDays; d++) {
+      const time = tsToDate(ta + d * DAY_MS)
+      if (bridge) out.push({ time, value: a.value + (b.value - a.value) * (d / gapDays), interp: true })
+      else out.push({ time, value: undefined, noData: true })
     }
   }
-  return filled
+  const last = data[data.length - 1]
+  out.push({ time: last.time, value: last.value })
+  return out
 }

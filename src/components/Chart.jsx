@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createChart, CrosshairMode, LineSeries, AreaSeries } from 'lightweight-charts'
-import { calcSMA, calcBollinger, fillTimeGaps } from '../utils/indicators'
+import { calcSMA, calcBollinger, resampleProportional } from '../utils/indicators'
 
 const INDICATOR_COLORS = {
   sma7: '#f59e0b',
@@ -288,8 +288,10 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
       return () => { ro.disconnect(); chart.remove(); chartRef.current = null }
     }
 
+    // Resample onto a daily grid so the (ordinal) time axis is proportional to
+    // real time; interpolates across normal gaps, breaks across multi-month holes.
     const linePoints = data.map(d => ({ time: d.date, value: d.avg }))
-    const filled = fillTimeGaps(linePoints, granularity, denseFrom)
+    const filled = resampleProportional(linePoints)
     const chartData = filled.map(d => ({ time: d.time, value: d.noData ? undefined : d.value }))
 
     let mainSeries
