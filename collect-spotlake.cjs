@@ -407,7 +407,27 @@ async function collectRegion(provider, region, cfg) {
   }
 
   for (const [type, data] of byInst) fs.writeFileSync(path.join(instDir, `${type}.json`), JSON.stringify(data));
-  fs.writeFileSync(path.join(regionDir, 'ondemand.json'), JSON.stringify(ondemand));
+
+  // On-demand history merge — IMPORTANT, do not remove. On resume the
+  // accumulator only re-ingests SPOT from inst/*.json (with OndemandPrice:0, see
+  // the rehydration loop above), so finalize()'s ondemand covers ONLY the ranges
+  // fetched this run. inst/*.json don't store on-demand, so without merging the
+  // committed ondemand.json every resumed/weekly run would overwrite it with the
+  // trailing slice and silently drop all earlier on-demand history — the same
+  // class of loss the spot monthly-archive.json seeds guard against. Keep prior
+  // change-points, let freshly-collected ones win on date overlap, re-collapse.
+  const odFile = path.join(regionDir, 'ondemand.json');
+  let ondemandOut = ondemand;
+  if (fs.existsSync(odFile)) {
+    try {
+      const prior = JSON.parse(fs.readFileSync(odFile, 'utf8'));
+      const byKey = new Map();
+      for (const r of prior) byKey.set(`${r.instance_type}::${r.date}`, r);
+      for (const r of ondemand) byKey.set(`${r.instance_type}::${r.date}`, r);
+      ondemandOut = dedupeOndemand([...byKey.values()]);
+    } catch { /* fall back to the freshly-collected ondemand */ }
+  }
+  fs.writeFileSync(odFile, JSON.stringify(ondemandOut));
 
   console.log(`  ✓ ${slug}: ${byInst.size} instance files, ${daily.length} daily records, ${newEvents} new events`);
   return { slug, meta };
