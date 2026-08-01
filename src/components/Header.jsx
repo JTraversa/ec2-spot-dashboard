@@ -1,3 +1,5 @@
+import RepoLink from './RepoLink'
+
 const PROVIDER_META = {
   aws:   { subtitle: 'AWS EC2 spot pricing — Linux/UNIX, 2014 to present' },
   gcp:   { subtitle: 'Google Cloud Spot VM pricing — 2024 to present' },
@@ -11,6 +13,7 @@ export default function Header({ provider = 'aws', stats }) {
       <div>
         <h1>Historical Cloud Pricing</h1>
         <div className="subtitle">{subtitle}</div>
+        <RepoLink />
       </div>
       <div className="header-stats">
         <div className="stat-box">

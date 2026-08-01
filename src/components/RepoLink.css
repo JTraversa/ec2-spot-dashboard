@@ -1,0 +1,24 @@
+/* Link to this tool's source, sat under the page description. Deliberately
+   quiet: it is a footnote to the intro copy, not an action. */
+.repo-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.85rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.repo-link:hover {
+  color: var(--text-primary);
+  border-bottom-color: currentColor;
+}
+
+.repo-link svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
