@@ -36,14 +36,55 @@ export function useSpotData() {
     cache.current[key] = true
   }
 
+  // inst-pre rows are packed to keep the payload small: 59% of spot days never
+  // move, so a flat day is [date, v] with OHLC all equal, and a day that moved
+  // is [date, avg, open, high, low, close]. Lossless either way.
+  function unpackRow(r) {
+    return r.length === 2
+      ? { date: r[0], open: r[1], high: r[1], low: r[1], close: r[1], avg: r[1] }
+      : { date: r[0], avg: r[1], open: r[2], high: r[3], low: r[4], close: r[5] }
+  }
+
   // Spot history for one instance: { daily, weekly, monthly } — full range each.
+  //
+  // Two files are fetched. `inst/` is the dense TITANS series (2024-02 onward).
+  // `inst-pre/` is everything before it: measured raw-event data back to
+  // 2022-05, plus, for the ~23 instances where a stable correction factor could
+  // be derived, adjusted archive months back to 2017. They are concatenated
+  // here rather than stored joined, because the overlap would otherwise be
+  // duplicated on disk for every instance.
   async function loadInstance(provider, region, inst) {
     const key = `${provider}/${region}/inst/${inst}`
     if (cache.current[key]) return
     const empty = { daily: [], weekly: [], monthly: [] }
-    const data = await fetch(`${BASE}/${provider}/${region}/inst/${encodeURIComponent(inst)}.json`)
-      .then(r => r.ok ? r.json() : empty).catch(() => empty)
-    cache.current[key] = data
+    const enc = encodeURIComponent(inst)
+    const [dense, pre] = await Promise.all([
+      fetch(`${BASE}/${provider}/${region}/inst/${enc}.json`)
+        .then(r => r.ok ? r.json() : empty).catch(() => empty),
+      fetch(`${BASE}/${provider}/${region}/inst-pre/${enc}.json`)
+        .then(r => r.ok ? r.json() : null).catch(() => null),
+    ])
+
+    if (pre) {
+      for (const g of ['daily', 'weekly', 'monthly']) {
+        const older = (pre[g] || []).map(unpackRow)
+        if (!older.length) continue
+        // inst-pre wins everything it covers; inst/ supplies only what follows.
+        //
+        // This matters most for `monthly`, where inst/ still carries the raw
+        // USC/ISI archive back to 2014. Those rows are what produced the
+        // fabricated cliff on the live chart (c3.large rendered a -47% crash
+        // across the 2023/2024 seam that never happened), and inst-pre replaces
+        // them with per-instance corrected values. Filtering the other way
+        // round would keep the bad rows.
+        const lastPre = older[older.length - 1].date
+        dense[g] = older.concat((dense[g] || []).filter(d => d.date > lastPre))
+      }
+      // Where the measured dense series starts, for the gap-filler.
+      dense.denseFrom = pre.src && pre.src.pauley ? pre.src.pauley[0] : null
+      dense.src = pre.src
+    }
+    cache.current[key] = dense
   }
 
   function instanceData(provider, region, inst) {
