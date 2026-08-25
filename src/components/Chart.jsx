@@ -117,7 +117,10 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
         borderColor: borderColor,
         timeVisible: false,
         rightOffset: 5,
-        minBarSpacing: 2,
+        // Low floor so fitContent can fit deep history: the spot series is
+        // resampled to a daily grid, so ALL on a 10-year instance is ~3,600
+        // bars — at the old floor of 2px that capped the window at ~2 years.
+        minBarSpacing: 0.05,
       },
       handleScroll: { vertTouchDrag: false },
       width: containerRef.current.clientWidth,
