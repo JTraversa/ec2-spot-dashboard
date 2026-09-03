@@ -5,10 +5,12 @@ name: Collect spot data
 # monthly-archive.json seeds), so each run only fetches the new ~week. The
 # resulting commit is pushed to master, which triggers the Vercel deploy.
 
+# 2026-09-03: the TITANS endpoint has returned 404 since ~2026-08-19 and
+# SpotLake is "under construction". Schedule removed; collect-direct.yml now
+# refreshes spot data from the providers' own APIs. Kept for manual runs in
+# case TITANS comes back.
 on:
-  schedule:
-    - cron: '17 7 * * 1'   # Mondays 07:17 UTC
-  workflow_dispatch: {}      # allow manual runs from the Actions tab
+  workflow_dispatch: {}      # manual only
 
 # Don't let two runs (e.g. a manual + scheduled) collide.
 concurrency:

@@ -349,8 +349,10 @@ async function collectRegion(provider, region, cfg) {
       newEvents += n;
       console.log(`${n} events`);
     } catch (err) {
+      // Do NOT mark the range processed: a failed window (API outage, 404)
+      // must be retried next run, not silently burned. The 2026-08 TITANS
+      // outage stamped two weeks as done this way before the fix.
       console.log(`SKIP (${err.message.slice(0, 100)})`);
-      processedRanges.add(key);
     }
 
     // Save progress marker

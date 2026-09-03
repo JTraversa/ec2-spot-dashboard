@@ -1,0 +1,87 @@
+name: Collect spot data (direct from providers)
+
+# Weekly refresh of spot prices straight from each provider's own history API,
+# replacing the SpotLake/TITANS feed that went dark on 2026-08-19.
+#
+#   AWS    EC2 DescribeSpotPriceHistory      90-day window  → collect-aws.cjs
+#   GCP    Compute Capacity Advisor (beta)   1-year window  → collect-gcp.cjs
+#   Azure  Resource Graph SpotResources      90-day window  → collect-azure.cjs
+#
+# Each provider step runs only when its secrets are configured, so a partial
+# setup still refreshes what it can. Raw events land in raw/ (committed, the
+# source of truth); public/data/<provider>/<region>/inst/*.json and meta.json
+# are rebuilt from them. A step that returns zero events exits non-zero, so a
+# silent outage fails the run instead of committing a stale week.
+#
+# Cadence matters: AWS and Azure serve only 90 days, so this job must not stay
+# broken for three months or that history is unrecoverable.
+#
+# Secrets:
+#   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY   (or swap in aws-actions/configure-aws-credentials with OIDC)
+#   GCP_SA_KEY (service-account JSON), GCP_PROJECT
+#   AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_SUBSCRIPTION_ID
+
+on:
+  schedule:
+    - cron: '17 7 * * 1'   # Mondays 07:17 UTC
+  workflow_dispatch: {}
+
+concurrency:
+  group: collect-direct
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+      GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci --omit=dev --ignore-scripts
+
+      - name: AWS (EC2 DescribeSpotPriceHistory)
+        if: env.AWS_ACCESS_KEY_ID != ''
+        run: node collect-aws.cjs
+
+      - name: GCP (Capacity Advisor price history)
+        if: env.GCP_SA_KEY != ''
+        run: node collect-gcp.cjs
+
+      - name: Azure (Resource Graph SpotResources)
+        if: env.AZURE_CLIENT_SECRET != ''
+        run: node collect-azure.cjs
+
+      - name: Commit & push
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add raw public/data
+          if git diff --cached --quiet; then
+            echo "No data changes — nothing to commit."
+            exit 0
+          fi
+          git commit -m "chore(data): weekly spot refresh (direct)"
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            echo "push rejected, rebasing (attempt $attempt)…"
+            git pull --rebase origin master
+          done
+          echo "push failed after retries" >&2
+          exit 1

@@ -36,3 +36,5 @@ HANDOFF.md
 # Pauley raw-event intermediates: regenerable via `node collect-pauley.cjs <period>`
 # from Zenodo 10.5281/zenodo.14198917. Merged output lives in inst-pre/.
 public/data/aws/*/pauley-*.json
+
+raw/**/.sample.json
