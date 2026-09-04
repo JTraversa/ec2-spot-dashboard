@@ -13,12 +13,12 @@ npm run build    # vite build -> dist/
 npm run lint     # eslint .
 npm run preview  # serve the built dist/
 
-node collect-spotlake.cjs          # refresh spot daily/weekly/monthly/ondemand/meta for ALL providers
-node collect-spotlake.cjs aws      # single provider: aws | gcp | azure
 node collect-pricing.cjs           # refresh AWS list-price overlays (s3/lambda/transfer/rds/ebs/ri.json)
+node collect-spotlake.cjs          # LEGACY: SpotLake TITANS — endpoint 404 since ~2026-08-19, kept for manual runs
+node collect-pauley.cjs 2023       # one-off: Zenodo raw-event backfill (see merge-pauley.cjs) → inst-pre/
 ```
 
-There is no test suite. There are no `npm run collect`/`collect:pricing` scripts — invoke each collector with `node` directly.
+There is no test suite. **Spot collection no longer lives here** — see the private sibling repo `../cloud-pricing-data` (collectors, raw event store, weekly workflow that pushes daily JSON into this repo's `public/data/`).
 
 ## Architecture
 
@@ -41,7 +41,17 @@ This single hook is the entire data access layer; `App.jsx` is just a state/orch
 ### AWS-only supplemental datasets
 Only AWS regions load `ondemand`, `ri`, `s3`, `lambda`, `rds`, `ebs`, `transfer`, and `storage_comparison` JSON (GCP/Azure get spot prices only). On-demand and RI overlays therefore only appear for `provider === 'aws'`.
 
-### Two collectors, two data families
+### Spot pipeline since 2026-09: private `cloud-pricing-data` repo → this repo's `inst/`
+SpotLake's TITANS API went dark ~2026-08-19 (404; site "under construction"). Spot data now comes from each provider's own history API via collectors in the **private sibling repo `../cloud-pricing-data`** (`collect-aws.cjs`, `collect-gcp.cjs`, `collect-azure.cjs`, `lib/spot-events.cjs`). Its weekly workflow checks this repo out, rebuilds `public/data/**/inst/*.json` + `meta.json` in place and pushes here (`chore(data): weekly spot refresh`), which triggers Vercel. Raw events are the premium tier and never land in this public repo.
+- **`raw/<provider>/<region>/YYYY-MM.tsv.gz` in cloud-pricing-data is the source of truth**: one price-change event per line `ts \t az \t instance \t product \t price`, deduped on rewrite. Everything else is derived and rebuildable.
+- **Aggregation is time-weighted** (a price holds until the next event in its (instance, az) series; the final price is carried to collection time but capped by a per-provider `maxCarry`: AWS 10d, Azure 120d, GCP 400d). AZs collapse by median (max high / min low). This is the same method as `inst-pre/` (Pauley), so no level step at the splice. TITANS-era rows were sample means and had their OHLC flattened by the old resume path — see below.
+- **`rebuildInst`** replaces only daily rows the raw store covers (from first-raw-month + maxCarry onward), keeps earlier rows (TITANS 2024-02→2026-08-17, USC/ISI monthly archive), and re-rolls weekly/monthly. `updateMeta` regenerates `<provider>/meta.json[region]` from `inst/`.
+- **Windows are short:** AWS and Azure serve 90 days. If the weekly job breaks for >3 months that history is gone; the raw store is what makes the series continuous.
+- **Azure quirk:** `properties.spotPrices[]` field names are only partly documented; the collector detects the timestamp field and writes `raw/azure/.sample.json` on first run for verification. It also snapshots 28-day eviction rates to `<region>/eviction.json` (not yet charted).
+- **On-demand is still TITANS-era** (`ondemand.json` frozen at 2026-08-17). Follow-up: AWS from the Price List region file, Azure from the Retail Prices API, GCP from the Billing Catalog API.
+- **`build-db.cjs`** (in cloud-pricing-data) loads `raw/` into a local `spot.sqlite` — the high-precision store for research; this dashboard keeps shipping daily JSON.
+
+### Legacy collectors, two data families
 `collect-spotlake.cjs` (SpotLake TITANS API) writes the **spot** data as **one file per instance** — `<region>/inst/<type>.json` = `{daily, weekly, monthly}` full history — plus `ondemand.json` and `meta.json` per region. (The app loads a single instance's ~66KB file on demand; there are no all-instances `daily.json` blobs anymore — that was the pre-2026-06 layout.) `collect-pricing.cjs` (AWS Price List Bulk API) writes the **list-price overlays** — `s3.json`, `lambda.json`, `transfer.json`, `rds.json`, `ebs.json`, `ri.json`. `storage_comparison.json` has **no** collector (hand-entered Azure/GCP storage prices for the S3 cross-cloud lines).
 
 ### `collect-pricing.cjs` — list-price overlays (built 2026-06)
@@ -57,8 +67,8 @@ Only AWS regions load `ondemand`, `ri`, `s3`, `lambda`, `rds`, `ebs`, `transfer`
 Collector details worth knowing:
 - It aggregates raw spot events into OHLC+avg daily buckets (running aggregates, so memory is bounded by the number of buckets, not raw event volume), then rolls up to ISO-week and month.
 - **The TITANS API silently caps every query at 500,000 events (`CAP`) and truncates the rest.** This is the critical gotcha: a coarse query over *all* instances in a busy AWS region blows past the cap and drops instances mid-range, leaving per-instance gaps that the monthly chart hides (it connects sparse points) but the daily/weekly short-range views expose as empty. The collector defends against this two ways: (1) AWS uses small **4-day** chunks (`chunkSize` as a number = days) that stay well under the cap (~85K events each); (2) `fetchRange` is **recursive** — any window that comes back at/over the cap is discarded and split in half down to a single day, so no events are silently lost. If you change AWS to coarser chunks or add a busier region, keep the cap in mind.
-- **AWS data floor is ~early February 2024** — TITANS returns `parquet not found` (HTTP 500) for months before that, regardless of the configured `startDate`. GCP starts 2024-06, Azure 2025-06.
-- It is **resumable**: a `.progress.json` per region tracks completed date ranges, and on restart it re-hydrates the accumulator from the existing `inst/*.json` files. To force a clean re-collect, delete the region's `inst/` dir + `.progress.json`.
+- **AWS data floor is ~early February 2024** — TITANS returned `parquet not found` (HTTP 500) for months before that. GCP starts 2024-01, Azure 2025-02. **Since ~2026-08-19 every query returns HTTP 404.**
+- It is **resumable**: a `.progress.json` per region tracks completed date ranges, and on restart it re-hydrates the accumulator from the existing `inst/*.json` files. To force a clean re-collect, delete the region's `inst/` dir + `.progress.json`. Two defects of this path (found 2026-09-03): (1) re-hydration ingests one event per day at `avg`, so **every resumed run flattens all prior daily OHLC** — 100% of TITANS-era daily rows are flat; (2) until the fix, a failed range was still added to `processedRanges`, which is how 2026-08-17→08-31 got stamped done during the outage.
 - **No trimming — per-instance files carry full history.** The old layout shipped one all-instances `daily.json` (>100 MB/region, over GitHub's file limit) and had to trim daily→120d / weekly→400d. Splitting into per-instance files (~66 KB each) removed that constraint, so the chart loads full history and zooms client-side. On-demand is still filtered of TITANS' `-1`/`0` "no price" sentinels, and the same filter applies to spot prices in `ingest` (`if (!(p > 0)) continue`).
 - **⚠️ The 2014–2023 history is a separate archive — do NOT lose it on re-collect.** TITANS only serves ~2024+. The deep *monthly* history (back to **2014-02**, for ~51 legacy instances like c3/m4/m5) comes from the **USC/ISI EC2 Spot Price Archive** and lives in committed `<region>/monthly-archive.json` seed files. `collectRegion` merges these into each instance's `monthly` array (and re-adds fully-retired instances like `g2.2xlarge` to `meta`). Wiping `inst/` for a clean re-collect is fine **only if the `monthly-archive.json` seeds remain** — they are the *only* copy of 2014–2023. This was lost once (a TITANS re-collect dropped everything before 2024 until it was restored from git `f18cfce`); the seed-merge exists so it can't recur. **Never delete `monthly-archive.json`.**
 - Per-provider config (regions, start dates, chunk size, Azure's curated instance list) lives in the `CONFIG` object near the top.
