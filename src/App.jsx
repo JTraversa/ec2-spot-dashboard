@@ -306,8 +306,7 @@ function App() {
 
   const getExportData = useCallback(() => {
     return chartData.map(d => ({
-      date: d.date, instance_type: instance, region,
-      open: d.open, high: d.high, low: d.low, close: d.close, avg: d.avg,
+      date: d.date, instance_type: instance, region, avg: d.avg,
     }))
   }, [chartData, instance, region])
 

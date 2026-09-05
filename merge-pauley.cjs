@@ -26,12 +26,13 @@
  * identical, so the same number was stored five times. `src` was repeated on
  * every row although it changes twice in an entire series.
  *
- * Encoding here, lossless:
+ * Encoding here:
  *
- *   [date, v]                        OHLC and avg all equal v
- *   [date, avg, open, high, low, close]   otherwise
+ *   [date, avg]
  *
- * and `src` is hoisted to file-level date ranges. ~33 bytes/record against 112.
+ * and `src` is hoisted to file-level date ranges. The intraday range is
+ * computed (it drives the AZ collapse) but not written: since 2026-09-05 the
+ * public tier is one value per day. ~20 bytes/record against 112.
  *
  * ---------------------------------------------------------------------------
  * SOURCES AND THEIR STANDING
@@ -73,11 +74,13 @@ const median = (a) => {
 };
 const r6 = (n) => +n.toFixed(6);
 
-/** Lossless compact row: 2 elements when flat, 6 when not. */
-const pack = (d) =>
-  d.open === d.avg && d.high === d.avg && d.low === d.avg && d.close === d.avg
-    ? [d.date, d.avg]
-    : [d.date, d.avg, d.open, d.high, d.low, d.close];
+/**
+ * Public row: [date, avg]. The dashboard ships one value per day; the intraday
+ * range computed above is deliberately dropped (it is the paid tier's domain).
+ * Before 2026-09-05 a day that moved was packed as [date, avg, open, high, low,
+ * close]; the frontend still tolerates that layout but nothing writes it.
+ */
+const pack = (d) => [d.date, d.avg];
 
 function weekStart(date) {
   const d = new Date(date + 'T00:00:00Z');

@@ -36,13 +36,12 @@ export function useSpotData() {
     cache.current[key] = true
   }
 
-  // inst-pre rows are packed to keep the payload small: 59% of spot days never
-  // move, so a flat day is [date, v] with OHLC all equal, and a day that moved
-  // is [date, avg, open, high, low, close]. Lossless either way.
+  // inst-pre rows are packed as [date, avg]. The public tier is one value per
+  // day (the time-weighted average); intraday range is not shipped. Older
+  // files carried [date, avg, open, high, low, close]; element 1 is avg in
+  // both layouts, so any extra elements are simply ignored.
   function unpackRow(r) {
-    return r.length === 2
-      ? { date: r[0], open: r[1], high: r[1], low: r[1], close: r[1], avg: r[1] }
-      : { date: r[0], avg: r[1], open: r[2], high: r[3], low: r[4], close: r[5] }
+    return { date: r[0], avg: r[1] }
   }
 
   // Spot history for one instance: { daily, weekly, monthly } — full range each.
