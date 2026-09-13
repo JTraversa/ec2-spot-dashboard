@@ -38,7 +38,7 @@ export default function Footer() {
         </div>
       </div>
       <div className="footer-bottom">
-        <span>Historical Cloud Pricing — AWS / GCP / Azure spot data (CC0), on-demand &amp; RI data via AWS Price List API</span>
+        <span>Historical Cloud Pricing by <a href="https://www.trycorpus.ai" target="_blank" rel="noopener noreferrer">corpusAI</a> — AWS / GCP / Azure spot data (CC0), on-demand &amp; RI data via AWS Price List API · <a href="https://tools.traversa.dev/cloud-pricing/api/docs" target="_blank" rel="noopener noreferrer">Paid API</a></span>
         <a href="https://zenodo.org/records/15003060" target="_blank" rel="noopener noreferrer">DOI: 10.5281/zenodo.5880793</a>
       </div>
     </div>

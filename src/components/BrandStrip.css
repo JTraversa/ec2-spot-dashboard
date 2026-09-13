@@ -1,0 +1,27 @@
+/* corpusAI brand strip under the dashboard title. Uses the site's own tokens
+   for surfaces and text; the only brand colour is the corpus green core. */
+.brand-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  text-decoration: none;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.brand-mark svg { display: block; }
+.brand-mark .ring { stroke: currentColor; }
+.brand-mark .core { fill: #1cc744; }
+.brand-mark:hover { color: #1cc744; }
+.brand-note { color: var(--text-secondary); }
+.brand-api { color: var(--text-primary); text-decoration: none; border-bottom: 1px solid var(--border); }
+.brand-api:hover { color: #1cc744; border-color: #1cc744; }

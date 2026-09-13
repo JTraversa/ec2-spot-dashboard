@@ -1,4 +1,5 @@
 import RepoLink from './RepoLink'
+import BrandStrip from './BrandStrip'
 
 const PROVIDER_META = {
   aws:   { subtitle: 'AWS EC2 spot pricing — Linux/UNIX, 2014 to present' },
@@ -14,6 +15,7 @@ export default function Header({ provider = 'aws', stats }) {
         <h1>Historical Cloud Pricing</h1>
         <div className="subtitle">{subtitle}</div>
         <RepoLink />
+        <BrandStrip />
       </div>
       <div className="header-stats">
         <div className="stat-box">
