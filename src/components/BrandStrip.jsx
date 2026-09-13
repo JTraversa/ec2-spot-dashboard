@@ -18,6 +18,9 @@ export default function BrandStrip() {
       <span className="brand-note">
         Free view: daily detail for the last 90 days, weekly for the last year, monthly beyond.
       </span>
+      <a className="brand-api" href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/gpu.html`}>
+        GPU rental prices: H100, H200, B200 and more per GPU-hour across neo-clouds and spot →
+      </a>
       <a className="brand-api" href={API_DOCS} target="_blank" rel="noopener noreferrer">
         Full-precision history, per-zone events and hourly bars: the API, from 0.01 USDC per call →
       </a>
