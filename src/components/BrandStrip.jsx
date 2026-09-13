@@ -1,6 +1,6 @@
 import './BrandStrip.css'
 
-const API_DOCS = 'https://tools.traversa.dev/cloud-pricing/api/docs'
+const API_DOCS = 'https://cloud.trycorpus.ai/docs'
 
 // corpusAI brand strip: the mark (ring in the current text colour, green
 // core, as on trycorpus.ai), the free-tier precision note, and the link to
