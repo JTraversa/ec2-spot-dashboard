@@ -28,7 +28,13 @@ const path = require('path');
 
 const B = 'https://pricing.us-east-1.amazonaws.com';
 const OUT = path.join(__dirname, 'public', 'data', 'aws');
-const REGIONS = ['us-east-1', 'eu-west-1', 'us-west-2'];
+// Same list as cloud-pricing-data/collect-aws.cjs (13 regions since 2026-09-13).
+// PRICING_REGIONS=us-east-1,eu-west-1 narrows a run (testing).
+const REGIONS = process.env.PRICING_REGIONS ? process.env.PRICING_REGIONS.split(',') : [
+  'us-east-1', 'eu-west-1', 'us-west-2',
+  'us-east-2', 'us-west-1', 'eu-central-1', 'eu-west-2', 'ap-southeast-1',
+  'ap-northeast-1', 'ap-south-1', 'ap-southeast-2', 'ca-central-1', 'sa-east-1',
+];
 
 // Older offer versions predate the `regionCode` attribute and key off `location`.
 const LOC = {
@@ -229,7 +235,26 @@ function extractRI(offer) {
   return out;
 }
 
+// On-demand: Linux, shared tenancy, no pre-installed software, hourly USD per
+// instance type (the same SKU filter as RI). Replaces the TITANS-era feed that
+// died in 2026-08; change-points append to the existing ondemand.json series.
+function extractOnDemand(offer) {
+  const out = new Map();
+  for (const p of Object.values(offer.products)) {
+    const a = p.attributes;
+    if (p.productFamily !== 'Compute Instance') continue;
+    if (a.operatingSystem !== 'Linux' || a.tenancy !== 'Shared') continue;
+    if (a.preInstalledSw !== 'NA' || a.capacitystatus !== 'Used') continue;
+    if (a.licenseModel && a.licenseModel !== 'No License required') continue;
+    if (out.has(a.instanceType)) continue;
+    const t = firstTier(offer, p.sku);
+    if (t && t.usd > 0) out.set(a.instanceType, { instance_type: a.instanceType, price: +t.usd.toFixed(6) });
+  }
+  return [...out.values()];
+}
+
 const INCREMENTAL = {
+  ondemand: { offer: 'AmazonEC2', key: r => r.instance_type, extract: extractOnDemand },
   rds: { offer: 'AmazonRDS', key: r => `${r.instance_type}|${r.engine}`, extract: extractRDS },
   ebs: { offer: 'AmazonEC2', key: r => r.volume_type, extract: extractEBS },
   ri:  { offer: 'AmazonEC2', key: r => `${r.instance_type}|${r.ri_type}`, extract: extractRI },
@@ -252,6 +277,7 @@ async function appendIncremental(names) {
       for (const n of svcNames) {
         const svc = INCREMENTAL[n];
         const file = path.join(OUT, region, `${n}.json`);
+        fs.mkdirSync(path.dirname(file), { recursive: true });   // a region new to the overlays
         const existing = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : [];
         const last = new Map();
         for (const r of existing) last.set(svc.key(r), r.price);

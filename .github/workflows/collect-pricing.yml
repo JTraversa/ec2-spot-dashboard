@@ -9,7 +9,7 @@ name: Collect pricing overlays
 
 on:
   schedule:
-    - cron: '23 6 1 * *'   # 1st of each month, 06:23 UTC
+    - cron: '23 6 * * 1'   # weekly, Mondays 06:23 UTC (on-demand + RI change-points for 13 regions; ~20 min)
   workflow_dispatch: {}
 
 concurrency:
@@ -31,7 +31,7 @@ jobs:
           node-version: 22
 
       - name: Collect pricing overlays
-        run: node collect-pricing.cjs
+        run: node --max-old-space-size=4096 collect-pricing.cjs
 
       - name: Commit & push refreshed overlays
         run: |
@@ -42,7 +42,7 @@ jobs:
             echo "No pricing changes — nothing to commit."
             exit 0
           fi
-          git commit -m "chore(data): monthly pricing overlay refresh"
+          git commit -m "chore(data): weekly pricing overlay refresh"
           for attempt in 1 2 3; do
             if git push; then exit 0; fi
             echo "push rejected, rebasing (attempt $attempt)…"
