@@ -340,6 +340,7 @@ function App() {
       <Socialicons />
       <Header provider={provider} stats={stats} />
       <Controls
+        meta={meta}
         provider={provider} setProvider={handleProviderChange}
         region={region} setRegion={handleRegionChange}
         chartType={chartType} setChartType={setChartType}

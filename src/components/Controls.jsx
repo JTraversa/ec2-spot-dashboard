@@ -23,10 +23,23 @@ const INDICATORS = [
   { key: 'bb', label: 'Bollinger' },
 ]
 
-const PROVIDER_REGIONS = {
-  aws:   [{ value: 'us-east-1', label: 'us-east-1' }, { value: 'us-west-2', label: 'us-west-2' }, { value: 'eu-west-1', label: 'eu-west-1' }],
-  gcp:   [{ value: 'us-central1', label: 'us-central1' }, { value: 'us-east4', label: 'us-east4' }, { value: 'europe-west4', label: 'europe-west4' }],
-  azure: [{ value: 'us-east', label: 'US East' }, { value: 'us-west-2', label: 'US West 2' }, { value: 'eu-west', label: 'EU West' }],
+// Regions come from each provider's meta.json (whatever the collectors
+// published), so a region added upstream appears here without a code change.
+// The original three per cloud are pinned first; labels below are cosmetic.
+const PINNED_REGIONS = {
+  aws:   ['us-east-1', 'us-west-2', 'eu-west-1'],
+  gcp:   ['us-central1', 'us-east4', 'europe-west4'],
+  azure: ['us-east', 'us-west-2', 'eu-west'],
+}
+const REGION_LABELS = {
+  'us-east': 'US East', 'us-west-2': 'US West 2', 'eu-west': 'EU West', 'us-east-2': 'US East 2', 'us-central': 'US Central',
+  'eu-north': 'EU North', 'asia-southeast': 'Asia Southeast', 'japan-east': 'Japan East', 'uk-south': 'UK South',
+}
+function regionOptions(provider, meta) {
+  const pinned = PINNED_REGIONS[provider] || []
+  const known = Object.keys((meta && meta[provider]) || {})
+  const all = [...pinned, ...known.filter(r => !pinned.includes(r)).sort()]
+  return all.map(r => ({ value: r, label: provider === 'azure' ? (REGION_LABELS[r] || r) : r }))
 }
 
 const PROVIDERS = [
@@ -42,9 +55,9 @@ export default function Controls({
   timeRange, setTimeRange,
   granularity, setGranularity,
   activeIndicators, toggleIndicator,
-  exportData, currentInstance, isS3,
+  exportData, currentInstance, isS3, meta,
 }) {
-  const regions = PROVIDER_REGIONS[provider] || PROVIDER_REGIONS.aws
+  const regions = regionOptions(provider, meta)
 
   return (
     <div className="controls">
