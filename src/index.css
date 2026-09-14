@@ -346,3 +346,12 @@ select {
   line-height: 1.6;
 }
 .footer-note a { color: var(--accent); }
+
+/* Narrow screens: title and stats stack instead of clipping. */
+@media (max-width: 720px) {
+  .dashboard-header { flex-direction: column; align-items: stretch; gap: 14px; padding: 14px 16px; }
+  .dashboard-header h1 { font-size: 1.5rem; }
+  .header-stats { flex-wrap: wrap; gap: 12px 20px; }
+  .stat-box { text-align: left; min-width: 40%; }
+  .controls { padding: 10px 16px; }
+}
