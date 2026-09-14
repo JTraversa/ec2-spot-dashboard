@@ -43,10 +43,9 @@
 body { margin: 0; }
 
 #root {
-  height: 100vh;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 
 .ovhidden { overflow: hidden; }
@@ -57,11 +56,18 @@ body { margin: 0; }
 .theme-toggle svg { width: 1em; height: 1em; }
 
 /* App Layout */
+/* The page scrolls as a document; the chart row keeps a working height on
+   any viewport instead of being squeezed by the footer. */
 .app {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 20px 16px;
 }
+.dashboard-header, .controls, .main, .dashboard-footer { border-right: 1px solid var(--border); }
+.dashboard-footer { border-bottom: 1px solid var(--border); }
 
 /* Dashboard Header */
 .dashboard-header {
@@ -127,7 +133,7 @@ select {
 .btn-group button:disabled { opacity: 0.3; cursor: not-allowed; }
 
 /* Main Layout */
-.main { display: flex; flex: 1; min-height: 0; border-left: 1px solid var(--border); }
+.main { display: flex; flex: none; height: max(460px, calc(100vh - 330px)); border-left: 1px solid var(--border); }
 
 /* Sidebar */
 .sidebar {
@@ -354,12 +360,11 @@ select {
   .header-stats { flex-wrap: wrap; gap: 12px 20px; }
   .stat-box { text-align: left; min-width: 40%; }
   .controls { padding: 10px 16px; }
+  .app { padding: 0 12px 12px; }
 }
 @media (max-width: 720px) {
   /* Phones: the page scrolls as a document; sidebar above a fixed-height chart. */
-  #root { height: auto; overflow: visible; }
-  .app { height: auto; }
-  .main { flex-direction: column; flex: none; }
+  .main { flex-direction: column; height: auto; }
   .sidebar { width: 100%; max-height: 220px; border-right: 0; border-bottom: 1px solid var(--border); }
   .chart-area { min-height: 380px; }
   .chart-container { min-height: 320px; }

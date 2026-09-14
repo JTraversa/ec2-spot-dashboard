@@ -335,7 +335,7 @@ function App() {
 
   return (
     <div className="app">
-      <CorpusBar page="Cloud pricing" current="charts" />
+      <CorpusBar current="charts" />
       <Header provider={provider} stats={stats} />
       <Controls
         meta={meta}

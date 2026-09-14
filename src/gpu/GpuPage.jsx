@@ -92,7 +92,7 @@ export default function GpuPage() {
 
   return (
     <>
-      <CorpusBar page="GPU rental prices" current="gpu" theme={false} />
+      <CorpusBar current="gpu" theme={false} />
       <div className="wrap">
         <h1>GPU rental prices</h1>
         <p className="lead">USD per GPU-hour across neo-clouds, marketplaces and other clouds, beside AWS and GCP spot for the same accelerator. Public price feeds, one snapshot a day; hyperscaler spot from our own price-change events (daily average of the mapped instance ÷ GPUs per node).</p>

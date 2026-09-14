@@ -9,13 +9,6 @@ const X402 = 'https://cloud.trycorpus.ai/x402'
 export default function BrandStrip() {
   return (
     <div className="brand-strip">
-      <a className="brand-mark" href="https://www.trycorpus.ai" target="_blank" rel="noopener noreferrer" aria-label="corpusAI">
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-          <circle className="ring" cx="12" cy="12" r="10" fill="none" strokeWidth="1.75" />
-          <rect className="core" x="8" y="8" width="8" height="8" />
-        </svg>
-        <span>corpusAI</span>
-      </a>
       <span className="brand-note">
         Free view: daily detail for the last 90 days, weekly for the last year, monthly beyond.
       </span>
