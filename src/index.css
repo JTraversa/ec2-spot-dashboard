@@ -355,3 +355,12 @@ select {
   .stat-box { text-align: left; min-width: 40%; }
   .controls { padding: 10px 16px; }
 }
+@media (max-width: 720px) {
+  /* Phones: the page scrolls as a document; sidebar above a fixed-height chart. */
+  #root { height: auto; overflow: visible; }
+  .app { height: auto; }
+  .main { flex-direction: column; flex: none; }
+  .sidebar { width: 100%; max-height: 220px; border-right: 0; border-bottom: 1px solid var(--border); }
+  .chart-area { min-height: 380px; }
+  .chart-container { min-height: 320px; }
+}
