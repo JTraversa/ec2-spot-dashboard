@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import SiteHeader from './components/SiteHeader'
-import Socialicons from './components/Socialicons'
+import CorpusBar from './components/CorpusBar'
 import Header from './components/Header'
 import Controls from './components/Controls'
 import Sidebar from './components/Sidebar'
@@ -336,8 +335,7 @@ function App() {
 
   return (
     <div className="app">
-      <SiteHeader />
-      <Socialicons />
+      <CorpusBar page="Cloud pricing" current="charts" />
       <Header provider={provider} stats={stats} />
       <Controls
         meta={meta}

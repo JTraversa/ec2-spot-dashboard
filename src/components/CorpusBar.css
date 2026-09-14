@@ -1,0 +1,26 @@
+/* corpusAI top bar. Colours come from the page's own tokens: the charts app
+   exposes --bg-primary/--text-primary (light or dark), the GPU page --bg/--ink;
+   each is mapped onto the bar's local variables below. */
+.corpus-top {
+  --bar-bg: var(--bg-primary, var(--bg, #ebebeb));
+  --bar-ink: var(--text-primary, var(--ink, #111));
+  --bar-muted: var(--text-secondary, var(--muted, #555));
+  --bar-rule: var(--border, var(--rule, #d4d4d4));
+  position: sticky; top: 0; z-index: 20;
+  background: color-mix(in srgb, var(--bar-bg) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--bar-rule);
+  color: var(--bar-ink);
+}
+.corpus-top-in { max-width: 1400px; margin: 0 auto; padding: 10px 20px; display: flex; align-items: center; gap: 14px; }
+.corpus-brand { display: flex; align-items: center; gap: 10px; font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif; font-weight: 600; font-size: 17px; letter-spacing: -.02em; color: var(--bar-ink); text-decoration: none; white-space: nowrap; }
+.corpus-brand svg { display: block }
+.corpus-brand .ring { stroke: currentColor }
+.corpus-brand .core { fill: #1cc744 }
+.corpus-brand em { font-style: normal; color: var(--bar-muted); font-weight: 500 }
+.corpus-links { margin-left: auto; display: flex; gap: 18px; font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; letter-spacing: .01em; }
+.corpus-links a { color: var(--bar-muted); text-decoration: none; padding: 4px 0; border-bottom: 1px solid transparent; }
+.corpus-links a:hover { color: var(--bar-ink); border-bottom-color: #1cc744; }
+.corpus-top .theme-toggle { height: auto; padding: 4px 6px; margin: 0; font-size: 1rem; line-height: 1; background: transparent; color: var(--bar-muted); }
+.corpus-top .theme-toggle:hover { color: var(--bar-ink) }
+@media (max-width: 720px) { .corpus-links { gap: 12px; font-size: 11px; flex-wrap: wrap; justify-content: flex-end } .corpus-brand em { display: none } }

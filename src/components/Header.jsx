@@ -1,4 +1,3 @@
-import RepoLink from './RepoLink'
 import BrandStrip from './BrandStrip'
 
 const PROVIDER_META = {
@@ -14,7 +13,6 @@ export default function Header({ provider = 'aws', stats }) {
       <div>
         <h1>Historical Cloud Pricing</h1>
         <div className="subtitle">{subtitle}</div>
-        <RepoLink />
         <BrandStrip />
       </div>
       <div className="header-stats">

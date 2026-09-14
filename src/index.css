@@ -1,18 +1,19 @@
-/* Theme Variables */
+/* Theme Variables: corpusAI palette, light first; the dark theme keeps the
+   original dashboard look for anyone who prefers it (toggle in the top bar). */
 :root {
-  --bg-primary: #0c0c0c;
-  --bg-secondary: #0d0d0d;
-  --bg-tertiary: #141414;
-  --border: rgba(255,255,255,0.12);
-  --text-primary: #fff;
-  --text-secondary: rgba(255,255,255,0.5);
-  --accent: rgb(80, 120, 190);
-  --accent-hover: rgb(105, 145, 215);
-  --error: #f85149;
-  --success: #3fb950;
-  --warning: #d29922;
+  --bg-primary: #ebebeb;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f5f5f5;
+  --border: #d4d4d4;
+  --text-primary: #111111;
+  --text-secondary: #555555;
+  --accent: #1F4B8E;
+  --accent-hover: #2a5fae;
+  --error: #c0392b;
+  --success: #12873b;
+  --warning: #b45309;
 
-  font-family: 'Raleway', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   line-height: 1.5;
   color: var(--text-primary);
   background-color: var(--bg-primary);
@@ -20,17 +21,21 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color-scheme: light;
 }
 
-[data-theme="light"] {
-  --bg-primary: #ffffff;
-  --bg-secondary: #ffffff;
-  --bg-tertiary: #f5f5f5;
-  --border: rgba(0,0,0,0.12);
-  --text-primary: #1a1a1a;
-  --text-secondary: rgba(0,0,0,0.5);
-  --accent: rgb(80, 120, 190);
-  --accent-hover: rgb(105, 145, 215);
+[data-theme="dark"] {
+  --bg-primary: #0f0f0f;
+  --bg-secondary: #171717;
+  --bg-tertiary: #1f1f1f;
+  --border: #2a2a2a;
+  --text-primary: #ececec;
+  --text-secondary: #a3a3a3;
+  --accent: #8fb3ff;
+  --accent-hover: #a9c4ff;
+  --error: #f85149;
+  --success: #4ade80;
+  color-scheme: dark;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -46,93 +51,16 @@ body { margin: 0; }
 
 .ovhidden { overflow: hidden; }
 
-/* Border Frame */
-.br-top, .br-bottom, .br-right, .br-left {
-  position: fixed;
-  z-index: 999999;
-  background: var(--bg-secondary);
-}
-.br-top { top: 0; left: 0; width: 100%; height: 10px; }
-.br-bottom { bottom: 0; left: 0; width: 100%; height: 10px; }
-.br-right { width: 10px; right: 0; top: 0; height: 100%; }
-.br-left { width: 10px; left: 0; top: 0; height: 100%; }
-
-/* Site Header */
-.site-header {
-  position: fixed;
-  top: 10px;
-  left: 10px;
-  right: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 0.5rem;
-  z-index: 1000;
-}
-
-.header-left { display: flex; align-items: center; }
-
-.theme-toggle {
-  background: var(--bg-secondary);
-  border: unset;
-  color: var(--text-primary);
-  cursor: pointer;
-  padding: 5px 15px;
-  margin: 0;
-  font-size: 1.25rem;
-  font-family: 'Marcellus', serif;
-  font-weight: bold;
-  line-height: 2;
-  height: 50px;
-  display: flex;
-  align-items: center;
-  z-index: 1000;
-}
+/* Theme toggle (lives in the corpus top bar) */
+.theme-toggle { background: transparent; border: 0; color: var(--text-secondary); cursor: pointer; padding: 4px 6px; margin: 0; font-size: 1rem; line-height: 1; display: flex; align-items: center; }
+.theme-toggle:hover { color: var(--text-primary); }
 .theme-toggle svg { width: 1em; height: 1em; }
-
-.menu-toggle {
-  background: var(--bg-secondary);
-  border: unset;
-  color: var(--text-primary);
-  cursor: pointer;
-  padding: 5px 15px;
-  margin: 0;
-  font-size: 1.25rem;
-  font-family: 'Marcellus', serif;
-  font-weight: bold;
-  line-height: 2;
-  height: 50px;
-  z-index: 1000;
-}
-.menu-toggle svg { width: 2em; height: 2em; fill: var(--text-primary); color: var(--text-primary); }
-
-/* Full-screen Navigation */
-.site-nav { position: fixed; top: 0; left: 0; width: 100%; height: 100%; visibility: hidden; overflow: hidden; z-index: 999; }
-.site-nav.nav-open { visibility: visible; }
-.nav-bg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-color: var(--bg-secondary); transform: translateY(-100%); transition: 0.5s ease all; }
-.nav-open .nav-bg { transform: translateY(0); }
-.nav-wrapper { position: relative; width: 100%; height: 100%; overflow: hidden auto; }
-.nav-container { padding: 1rem; }
-.nav-menu { list-style: none; padding-top: 15vh; padding-bottom: 15vh; padding-left: 0; margin: 0; }
-.nav-menu-item a { color: var(--text-primary); font-family: 'Marcellus', serif; font-size: 1.5rem; line-height: 1; display: inline-block; padding: 4px 0; margin: 8px 0; text-decoration: none; transition: color 250ms cubic-bezier(0, 0, 0.58, 1); }
-.nav-menu-item a:hover { color: var(--accent); }
-.nav-menu-divider { height: 1px; background: var(--border); margin: 1.5rem 0; }
-.nav-tool-item { padding-left: 1.5rem; }
-.nav-footer { position: absolute; bottom: 0; width: 100%; padding: 1rem; background: var(--bg-secondary); font-family: 'Marcellus', serif; font-size: 14px; }
-.nav-footer-links { display: flex; gap: 1rem; }
-.nav-footer-links a { color: var(--text-primary); text-decoration: none; }
-.nav-footer-links a:hover { color: var(--accent); }
-
-@media (min-width: 500px) { .nav-container { margin-left: 33.3333%; } .nav-menu { padding-top: 10vh; padding-bottom: 10vh; } }
-@media (min-width: 768px) { .nav-menu-item a { font-size: 1.75rem; } }
 
 /* App Layout */
 .app {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  padding: 10px;
-  padding-left: 70px;
 }
 
 /* Dashboard Header */
@@ -142,18 +70,16 @@ body { margin: 0; }
   border-left: 1px solid var(--border);
   border-top: 1px solid var(--border);
   padding: 16px 24px;
-  padding-top: 16px;
-  margin-top: 50px;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
-.dashboard-header h1 { font-family: 'Marcellus', serif; font-size: 2rem; font-weight: 400; color: var(--text-primary); }
+.dashboard-header h1 { font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 1.9rem; font-weight: 700; letter-spacing: -.02em; color: var(--text-primary); }
 .dashboard-header .subtitle { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
 .header-stats { display: flex; gap: 24px; }
 .stat-box { text-align: right; }
 .stat-box .label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
-.stat-box .value { font-size: 18px; font-weight: 600; font-family: 'SF Mono', 'Fira Code', monospace; }
+.stat-box .value { font-size: 18px; font-weight: 600; font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
 .stat-box .value.up { color: var(--success); }
 .stat-box .value.down { color: var(--error); }
 .stat-box .value.neutral { color: var(--text-primary); }
@@ -179,7 +105,7 @@ select {
   padding: 6px 10px;
   border-radius: 0;
   font-size: 13px;
-  font-family: 'Raleway', sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
   outline: none;
   cursor: pointer;
 }
@@ -192,7 +118,7 @@ select {
   padding: 6px 12px;
   border-radius: 0;
   font-size: 12px;
-  font-family: 'Raleway', sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.55, 0, 0.1, 1);
 }
@@ -235,7 +161,7 @@ select {
   box-sizing: border-box;
   padding: 5px 8px;
   font-size: 12px;
-  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   background: var(--bg-primary);
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -255,7 +181,7 @@ select {
   border-radius: 0;
   cursor: pointer;
   font-size: 13px;
-  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   transition: background 0.15s;
 }
 .instance-item:hover { background: var(--bg-tertiary); }
@@ -273,7 +199,7 @@ select {
   width: 100%;
   padding: 6px 8px;
   font-size: 12px;
-  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   background: transparent;
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -318,7 +244,7 @@ select {
 .chart-title .instance-name {
   color: var(--text-primary);
   font-weight: 600;
-  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .no-data-msg {
@@ -407,6 +333,7 @@ select {
 .footer-section ul { list-style: none; padding: 0; margin: 0; }
 .footer-section ul li { margin-bottom: 3px; line-height: 1.5; }
 .footer-bottom { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text-secondary); }
+.footer-right { display: inline-flex; align-items: center; gap: 14px; }
 
 .footer-note {
   background: var(--bg-tertiary);

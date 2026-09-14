@@ -1,3 +1,5 @@
+import RepoLink from './RepoLink'
+
 export default function Footer() {
   return (
     <div className="dashboard-footer">
@@ -38,8 +40,8 @@ export default function Footer() {
         </div>
       </div>
       <div className="footer-bottom">
-        <span>Historical Cloud Pricing by <a href="https://www.trycorpus.ai" target="_blank" rel="noopener noreferrer">corpusAI</a> — AWS / GCP / Azure spot data (CC0), on-demand &amp; RI data via AWS Price List API · <a href="https://cloud.trycorpus.ai/docs" target="_blank" rel="noopener noreferrer">Paid API</a></span>
-        <a href="https://zenodo.org/records/15003060" target="_blank" rel="noopener noreferrer">DOI: 10.5281/zenodo.5880793</a>
+        <span>Historical Cloud Pricing by <a href="https://www.trycorpus.ai" target="_blank" rel="noopener noreferrer">corpusAI</a>, built by <a href="https://traversa.dev" target="_blank" rel="noopener noreferrer">Julian Traversa</a> — AWS / GCP / Azure spot data (CC0), on-demand &amp; RI data via AWS Price List API · <a href="https://cloud.trycorpus.ai/docs">API</a> · <a href="https://cloud.trycorpus.ai/x402">x402</a></span>
+        <span className="footer-right"><RepoLink /><a href="https://zenodo.org/records/15003060" target="_blank" rel="noopener noreferrer">DOI: 10.5281/zenodo.5880793</a></span>
       </div>
     </div>
   )

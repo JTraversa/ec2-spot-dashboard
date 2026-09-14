@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createChart, LineSeries } from 'lightweight-charts'
+import CorpusBar from '../components/CorpusBar'
 
 // Free GPU headline: daily median USD per GPU-hour per provider, plus the
 // hyperscaler spot legs, from public/data/gpu/{latest,history}.json (written
@@ -91,10 +92,7 @@ export default function GpuPage() {
 
   return (
     <>
-      <div className="top"><div className="top-in">
-        <a className="brand" href="https://www.trycorpus.ai"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle className="ring" cx="12" cy="12" r="10" fill="none" strokeWidth="1.75" /><rect className="core" x="8" y="8" width="8" height="8" /></svg>corpusAI <em>/ GPU rental prices</em></a>
-        <div className="top-links"><a href={`${BASE}/`}>cloud pricing dashboard</a><a href={API_DOCS}>API docs</a><a href="https://cloud.trycorpus.ai/openapi.json">openapi.json</a><a href="https://www.trycorpus.ai">trycorpus.ai</a></div>
-      </div></div>
+      <CorpusBar page="GPU rental prices" current="gpu" theme={false} />
       <div className="wrap">
         <h1>GPU rental prices</h1>
         <p className="lead">USD per GPU-hour across neo-clouds, marketplaces and other clouds, beside AWS and GCP spot for the same accelerator. Public price feeds, one snapshot a day; hyperscaler spot from our own price-change events (daily average of the mapped instance ÷ GPUs per node).</p>
