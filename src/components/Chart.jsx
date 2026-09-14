@@ -89,7 +89,7 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
     }
 
     const styles = getComputedStyle(document.documentElement)
-    const bgColor = styles.getPropertyValue('--bg-primary').trim() || '#0c0c0c'
+    const bgColor = styles.getPropertyValue('--bg-secondary').trim() || '#171717'
     const borderColor = styles.getPropertyValue('--border').trim() || 'rgba(255,255,255,0.12)'
     const textColor = styles.getPropertyValue('--text-secondary').trim() || 'rgba(255,255,255,0.5)'
     const accentColor = styles.getPropertyValue('--accent').trim() || 'rgb(80, 120, 190)'
