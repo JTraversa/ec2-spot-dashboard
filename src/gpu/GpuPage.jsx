@@ -18,12 +18,14 @@ export default function GpuPage() {
   const [history, setHistory] = useState(null)
   const [gpu, setGpu] = useState('H100 SXM')
   const [error, setError] = useState(null)
+  const [stress, setStress] = useState(null) // free capacity headline from the API (same host)
   const chartRef = useRef(null)
 
   useEffect(() => {
     Promise.all([
       fetch(`${BASE}/data/gpu/latest.json`).then((r) => r.json()),
       fetch(`${BASE}/data/gpu/history.json`).then((r) => r.json()),
+      fetch('https://cloud.trycorpus.ai/v1/capacity/headline').then((r) => (r.ok ? r.json() : null)).then((j) => setStress(j)).catch(() => {}),
     ]).then(([l, h]) => { setLatest(l); setHistory(h); if (!l.models[gpu]) setGpu(Object.keys(l.models)[0]) })
       .catch((e) => setError(String(e)))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -101,6 +103,7 @@ export default function GpuPage() {
           <label htmlFor="gpu">GPU</label>
           <select id="gpu" value={gpu} onChange={(e) => setGpu(e.target.value)}>{models.map((m) => <option key={m} value={m}>{m}</option>)}</select>
           {latest && <span className="note">snapshot {latest.generated_at.slice(0, 10)} · {latest.days}-day window</span>}
+          {stress && stress.models && (() => { const s = stress.models.find((m) => m.gpu === gpu); return s ? <a className={`stress s${Math.min(3, Math.floor(s.score / 25))}`} href="https://cloud.trycorpus.ai/docs#capacity-stress" title="0 slack, 100 tight; components in the paid API">capacity stress {s.score}<small>/100 · {s.signals} signals</small></a> : null })()}
         </div>
         <div className="grid">
           <div className="panel">

@@ -14,6 +14,7 @@ h1{font-family:var(--display);font-weight:700;font-size:30px;letter-spacing:-.02
 .chart{height:360px;width:100%;max-width:100%}
 table{border-collapse:collapse;width:100%;font-size:13px}th,td{border-bottom:1px solid var(--rule);padding:6px 8px;text-align:left}th{font-family:var(--mono);font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--faint);font-weight:500}
 td.num{font-family:var(--mono);text-align:right}th.num{text-align:right}
+.stress{display:inline-flex;align-items:baseline;gap:6px;margin-left:auto;font-family:var(--mono);font-size:12px;padding:5px 10px;border:1px solid var(--rule);background:var(--panel);color:var(--ink)}.stress small{color:var(--muted);font-size:11px}.stress::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--green);align-self:center}.stress.s1::before{background:#b8a000}.stress.s2::before{background:#e07b00}.stress.s3::before{background:#c0392b}
 .tag{display:inline-block;font-family:var(--mono);font-size:10.5px;padding:1px 6px;border:1px solid var(--rule);border-radius:3px;color:var(--muted);margin-left:6px}
 .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:8px;vertical-align:middle}
 .note{color:var(--muted);font-size:12.5px;margin-top:12px}
