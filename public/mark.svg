@@ -1,4 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-  <circle cx="12" cy="12" r="10" fill="none" stroke="#1F4B8E" stroke-width="1.75" />
-  <rect x="8" y="8" width="8" height="8" fill="#1F4B8E" />
+  <!-- The mark from the ink animation: mid-gray ring, deep forest-green core
+       (sampled from media/corpus_ink_poster: ring ~#8c8d8c, core #3e6148).
+       Geometry matches the nav brand; stroke is heavier than the nav's 1.4
+       because favicons render at 16px. -->
+  <circle cx="12" cy="12" r="10" fill="none" stroke="#8c8d8c" stroke-width="1.75" />
+  <rect x="8.5" y="8.5" width="7" height="7" fill="#3e6148" />
 </svg>
