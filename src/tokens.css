@@ -1,0 +1,38 @@
+/* corpusAI design tokens (corpus-website/docs/design-system.md, section 5).
+   Light is the only theme; there is no dark mode and no stored preference.
+   Shared by the charts page (index.html) and the GPU charts page (gpu.html). */
+:root {
+  --bg: #ebebeb;
+  --panel: #ffffff;
+  --ink: #111111;
+  --muted: #555555;
+  --faint: #666666;
+  --rule: #d4d4d4;
+  --green: #1cc744;
+  --green-text: #0e7a2c;
+  --red: #ff5126;
+  --red-text: #b8340f;
+  --amber: #a67c0e;
+  /* Hover wash for rows and quiet controls, mixed from the two grounds. */
+  --wash: color-mix(in srgb, var(--bg) 45%, var(--panel));
+
+  --sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --display: 'Space Grotesk', 'Inter', sans-serif;
+  --mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  color-scheme: light;
+  font-family: var(--sans);
+  line-height: 1.5;
+  color: var(--ink);
+  background-color: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body { margin: 0; background: var(--bg); color: var(--ink); }
+
+/* Links: ink, with a rule-colored underline that turns green on hover. */
+a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--rule); text-decoration-thickness: 1px; text-underline-offset: 3px; transition: text-decoration-color 0.15s; }
+a:hover { text-decoration-color: var(--green); }

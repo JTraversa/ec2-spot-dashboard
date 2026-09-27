@@ -1,31 +1,22 @@
-/* corpusAI top bar. Colours come from the page's own tokens: the charts app
-   exposes --bg-primary/--text-primary (light or dark), the GPU page --bg/--ink;
-   each is mapped onto the bar's local variables below. */
+/* corpusAI Cloud Pricing top bar. Tokens come from src/tokens.css. */
 .corpus-top {
-  --bar-bg: var(--bg-primary, var(--bg, #ebebeb));
-  --bar-ink: var(--text-primary, var(--ink, #111));
-  --bar-muted: var(--text-secondary, var(--muted, #555));
-  --bar-rule: var(--border, var(--rule, #d4d4d4));
   position: sticky; top: 0; z-index: 20;
-  background: color-mix(in srgb, var(--bar-bg) 92%, transparent);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
   backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--bar-rule);
-  color: var(--bar-ink);
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink);
 }
 .corpus-top-in { max-width: 1400px; margin: 0 auto; padding: 10px 20px; display: flex; align-items: center; gap: 14px; }
-.corpus-brand { display: flex; align-items: center; gap: 10px; font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif; font-weight: 600; font-size: 17px; letter-spacing: -.02em; color: var(--bar-ink); text-decoration: none; white-space: nowrap; }
-.corpus-brand svg { display: block }
-.corpus-brand .ring { stroke: currentColor }
-.corpus-brand .core { fill: #1cc744 }
-.corpus-brand em { font-style: normal; color: var(--bar-muted); font-weight: 500 }
-.corpus-links { margin-left: auto; display: flex; gap: 18px; font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; letter-spacing: .01em; }
-.corpus-links a { color: var(--bar-muted); text-decoration: none; padding: 4px 0; border-bottom: 1px solid transparent; }
-.corpus-links a:hover, .corpus-links a.active { color: var(--bar-ink); border-bottom-color: #1cc744; }
-.corpus-top .theme-toggle { height: auto; padding: 4px 6px; margin: 0; font-size: 1rem; line-height: 1; background: transparent; color: var(--bar-muted); }
-.corpus-top .theme-toggle:hover { color: var(--bar-ink) }
-/* Phones: brand and toggle on the first row, links as one scrollable row beneath. */
-@media (max-width: 720px) {
+.corpus-brand { display: flex; align-items: center; gap: 9px; font-family: var(--display); font-weight: 600; font-size: 17px; letter-spacing: -0.02em; color: var(--ink); text-decoration: none; white-space: nowrap; }
+.corpus-brand svg { display: block; flex-shrink: 0; }
+.corpus-brand em { font-style: normal; color: var(--muted); font-weight: 500; }
+.corpus-links { margin-left: auto; display: flex; gap: 18px; font-family: var(--mono); font-weight: 400; font-size: 13px; }
+.corpus-links a { color: var(--muted); text-decoration: none; padding: 4px 0 2px; border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s; }
+.corpus-links a:hover { color: var(--ink); }
+.corpus-links a.active { color: var(--ink); border-bottom-color: var(--green); }
+/* Phones: brand on the first row, links as one scrollable row beneath. */
+@media (max-width: 860px) {
   .corpus-top-in { flex-wrap: wrap; padding: 8px 16px; row-gap: 4px; }
-  .corpus-top .theme-toggle { margin-left: auto; }
-  .corpus-links { flex-basis: 100%; order: 3; margin-left: 0; justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; white-space: nowrap; gap: 16px; font-size: 11.5px; scrollbar-width: none; }
+  .corpus-links { flex-basis: 100%; margin-left: 0; justify-content: flex-start; flex-wrap: nowrap; overflow-x: auto; white-space: nowrap; gap: 16px; font-size: 12.5px; scrollbar-width: none; }
+  .corpus-links::-webkit-scrollbar { display: none; }
 }

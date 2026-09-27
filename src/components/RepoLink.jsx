@@ -1,7 +1,6 @@
 import './RepoLink.css';
 
-// This tool's own repository. Each tool is its own repo, so the URL is baked in
-// here rather than derived.
+// This project's public repository.
 const REPO_URL = 'https://github.com/JTraversa/ec2-spot-dashboard';
 
 export default function RepoLink() {

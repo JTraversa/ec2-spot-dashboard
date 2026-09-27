@@ -4,7 +4,8 @@ import Header from './components/Header'
 import Controls from './components/Controls'
 import Sidebar from './components/Sidebar'
 import Chart from './components/Chart'
-import Footer from './components/Footer'
+import Sources from './components/Sources'
+import SiteFooter from './components/SiteFooter'
 import { useSpotData } from './hooks/useSpotData'
 
 const GRANULARITY_LABELS = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' }
@@ -92,7 +93,7 @@ function App() {
     })
   }, [])
 
-  // S3 chart data — all classes as a map
+  // S3 chart data: all classes as a map
   const s3ChartData = useMemo(() => {
     if (!isS3 || !regionLoaded) return {}
     const classes = getS3Classes(provider, region)
@@ -104,7 +105,7 @@ function App() {
     return result
   }, [isS3, provider, region, regionLoaded])
 
-  // Lambda chart data — all categories as a map
+  // Lambda chart data: all categories as a map
   const lambdaChartData = useMemo(() => {
     if (!isLambda || !regionLoaded) return {}
     const cats = getLambdaCategories(provider, region)
@@ -116,7 +117,7 @@ function App() {
     return result
   }, [isLambda, provider, region, regionLoaded])
 
-  // RDS chart data — MySQL and PostgreSQL on same chart
+  // RDS chart data: MySQL and PostgreSQL on same chart
   const rdsChartData = useMemo(() => {
     if (!isRDS || !regionLoaded || !rdsType) return {}
     const result = {}
@@ -127,7 +128,7 @@ function App() {
     return result
   }, [isRDS, rdsType, provider, region, regionLoaded])
 
-  // EBS chart data — all volume types as a map
+  // EBS chart data: all volume types as a map
   const ebsChartData = useMemo(() => {
     if (!isEBS || !regionLoaded) return {}
     const types = getEBSTypes(provider, region)
@@ -139,7 +140,7 @@ function App() {
     return result
   }, [isEBS, provider, region, regionLoaded])
 
-  // Transfer chart data — all transfer types as a map
+  // Transfer chart data: all transfer types as a map
   const transferChartData = useMemo(() => {
     if (!isTransfer || !regionLoaded) return {}
     const types = getTransferTypes(provider, region)
@@ -172,7 +173,7 @@ function App() {
           price: `$${latest.value.toFixed(4)}/GB`,
           change: `${icon} ${Math.abs(change).toFixed(1)}%`,
           changeClass,
-          range: `$${Math.min(...allVals).toFixed(4)} — $${Math.max(...allVals).toFixed(4)}`,
+          range: `$${Math.min(...allVals).toFixed(4)} to $${Math.max(...allVals).toFixed(4)}`,
           granularity: `${totalClasses} storage classes`,
         },
       }
@@ -193,7 +194,7 @@ function App() {
           price: `$${latest.value.toFixed(10)}`,
           change: `${icon} ${Math.abs(change).toFixed(1)}%`,
           changeClass,
-          range: `—`,
+          range: 'n/a',
           granularity: `${Object.keys(lambdaChartData).length} pricing tiers`,
         },
       }
@@ -214,8 +215,8 @@ function App() {
           price: `$${latest.value.toFixed(4)}/hr`,
           change: `${icon} ${Math.abs(change).toFixed(1)}%`,
           changeClass,
-          range: `—`,
-          granularity: `MySQL & PostgreSQL`,
+          range: 'n/a',
+          granularity: 'MySQL and PostgreSQL',
         },
       }
     }
@@ -233,9 +234,9 @@ function App() {
         usedGranularity: 'monthly',
         stats: {
           price: `$${latest.value.toFixed(3)}/GB-mo`,
-          change: change === 0 ? '— 0%' : `${icon} ${Math.abs(change).toFixed(1)}%`,
+          change: change === 0 ? '0%' : `${icon} ${Math.abs(change).toFixed(1)}%`,
           changeClass: change === 0 ? 'neutral' : changeClass,
-          range: `—`,
+          range: 'n/a',
           granularity: `${Object.keys(ebsChartData).length} volume types`,
         },
       }
@@ -256,7 +257,7 @@ function App() {
           price: `$${latest.value.toFixed(3)}/GB`,
           change: `${icon} ${Math.abs(change).toFixed(1)}%`,
           changeClass,
-          range: `—`,
+          range: 'n/a',
           granularity: `${Object.keys(transferChartData).length} transfer types`,
         },
       }
@@ -297,7 +298,7 @@ function App() {
         price: `$${latest.avg.toFixed(4)}`,
         change: `${icon} ${Math.abs(change).toFixed(2)}%`,
         changeClass,
-        range: `$${Math.min(...allAvgs).toFixed(4)} — $${Math.max(...allAvgs).toFixed(4)}`,
+        range: `$${Math.min(...allAvgs).toFixed(4)} to $${Math.max(...allAvgs).toFixed(4)}`,
         granularity: `${GRANULARITY_LABELS[result.actualGranularity]} (${statSrc.length} pts)`,
       },
     }
@@ -386,7 +387,8 @@ function App() {
           storageComparison={isS3 && regionLoaded ? getStorageComparison(provider, region) : null}
         />
       </div>
-      <Footer />
+      <Sources />
+      <SiteFooter />
     </div>
   )
 }

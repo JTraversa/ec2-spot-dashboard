@@ -1,61 +1,81 @@
 import { useEffect, useRef, useState } from 'react'
 import { createChart, CrosshairMode, LineSeries, AreaSeries } from 'lightweight-charts'
 import { calcSMA, calcBollinger, resampleProportional } from '../utils/indicators'
+import { PRIMARY, SLOTS, OTHER, CHART_SURFACE, CHART_GRID, CHART_TEXT, CHART_BORDER, tint } from '../charts/palette'
 
-const INDICATOR_COLORS = {
-  sma7: '#f59e0b',
-  sma30: '#ec4899',
-  sma90: '#8b5cf6',
+// Every chart gives its primary series ink and hands the fixed slots out in the
+// order below. Series a chart can show beyond ink plus six slots fold into the
+// neutral OTHER style; they keep their direct label on the price axis.
+
+// EC2 and VM spot: spot price is primary, then the reference lines, then the
+// indicators. Bollinger bands are an envelope, drawn in the neutral style.
+const EC2_COLORS = {
+  onDemand: SLOTS[0],
+  ri1y: SLOTS[1],
+  ri3y: SLOTS[2],
+  sma7: SLOTS[3],
+  sma30: SLOTS[4],
+  sma90: SLOTS[5],
+  bollinger: OTHER,
 }
 
+// S3: Standard is primary (the header stats use it). Four more classes take
+// slots 1 to 4 and the Azure and Google Cloud reference lines take 5 and 6.
+// One Zone-IA, Intelligent-Tiering FA (priced as Standard) and the retired
+// Reduced Redundancy class fold into OTHER.
 const S3_COLORS = {
-  'Standard': '#2563eb',
-  'Standard-IA': '#f59e0b',
-  'One Zone-IA': '#ec4899',
-  'Glacier': '#10b981',
-  'Glacier Deep Archive': '#06b6d4',
-  'Glacier Instant Retrieval': '#8b5cf6',
-  'Intelligent-Tiering FA': '#f97316',
-  'Reduced Redundancy': '#6b7280',
+  'Standard': PRIMARY,
+  'Standard-IA': SLOTS[0],
+  'Glacier Instant Retrieval': SLOTS[1],
+  'Glacier': SLOTS[2],
+  'Glacier Deep Archive': SLOTS[3],
 }
+const AZURE_COLOR = SLOTS[4]
+const GCP_COLOR = SLOTS[5]
 
 const LAMBDA_COLORS = {
-  'Compute (x86)': '#2563eb',
-  'Compute (ARM)': '#10b981',
-  'Requests': '#f59e0b',
-  'Provisioned Compute': '#ec4899',
-  'Provisioned Concurrency': '#8b5cf6',
+  'Compute (x86)': PRIMARY,
+  'Compute (ARM)': SLOTS[0],
+  'Requests': SLOTS[1],
+  'Provisioned Compute': SLOTS[2],
+  'Provisioned Concurrency': SLOTS[3],
 }
 
 const RDS_COLORS = {
-  'MySQL': '#2563eb',
-  'PostgreSQL': '#10b981',
+  'MySQL': PRIMARY,
+  'PostgreSQL': SLOTS[0],
 }
 
 const EBS_COLORS = {
-  'gp3': '#10b981',
-  'gp2': '#2563eb',
-  'io2': '#ec4899',
-  'io1': '#f59e0b',
-  'st1': '#06b6d4',
-  'sc1': '#8b5cf6',
+  'gp3': PRIMARY,
+  'gp2': SLOTS[0],
+  'io2': SLOTS[1],
+  'io1': SLOTS[2],
+  'st1': SLOTS[3],
+  'sc1': SLOTS[4],
 }
 
 const TRANSFER_COLORS = {
-  'Internet (0-10 TB)': '#2563eb',
-  'Internet (10-50 TB)': '#10b981',
-  'Internet (50-150 TB)': '#f59e0b',
-  'Cross-Region': '#ec4899',
-  'Cross-AZ': '#8b5cf6',
+  'Internet (0-10 TB)': PRIMARY,
+  'Internet (10-50 TB)': SLOTS[0],
+  'Internet (50-150 TB)': SLOTS[1],
+  'Cross-Region': SLOTS[2],
+  'Cross-AZ': SLOTS[3],
 }
 
-const AZURE_COLOR = '#0078d4'
-const GCP_COLOR = '#34a853'
+// Sentence-case display names for series keys that arrive title-cased in the
+// data. AWS product names (S3 classes, EBS types) are kept as AWS writes them.
+const SERIES_LABELS = {
+  'Provisioned Compute': 'Provisioned compute',
+  'Provisioned Concurrency': 'Provisioned concurrency',
+  'Cross-Region': 'Cross-region',
+}
+const seriesLabel = (key) => SERIES_LABELS[key] || key
+const lineWidthFor = (color) => (color === OTHER ? 1 : 2)
 
 export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, transferData, chartType, activeIndicators, granularity, visibleRange, denseFrom, instance, region, onDemandData, riData, isS3, isLambda, isRDS, isEBS, isTransfer, storageComparison }) {
   const containerRef = useRef(null)
   const chartRef = useRef(null)
-  const [theme, setTheme] = useState(document.documentElement.getAttribute('data-theme') || 'dark')
   const [hiddenS3Classes, setHiddenS3Classes] = useState(new Set())
 
   const toggleS3Class = (cls) => {
@@ -66,14 +86,6 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
       return next
     })
   }
-
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setTheme(document.documentElement.getAttribute('data-theme') || 'dark')
-    })
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
-    return () => observer.disconnect()
-  }, [])
 
   useEffect(() => {
     const hasS3 = isS3 && s3Data && Object.keys(s3Data).length > 0
@@ -88,38 +100,33 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
       chartRef.current = null
     }
 
-    const styles = getComputedStyle(document.documentElement)
-    const bgColor = styles.getPropertyValue('--bg-secondary').trim() || '#171717'
-    const borderColor = styles.getPropertyValue('--border').trim() || 'rgba(255,255,255,0.12)'
-    const textColor = styles.getPropertyValue('--text-secondary').trim() || 'rgba(255,255,255,0.5)'
-    const accentColor = styles.getPropertyValue('--accent').trim() || 'rgb(80, 120, 190)'
-
     const chart = createChart(containerRef.current, {
       layout: {
-        background: { type: 'solid', color: bgColor },
-        textColor: textColor,
+        background: { type: 'solid', color: CHART_SURFACE },
+        textColor: CHART_TEXT,
         fontSize: 12,
+        fontFamily: "'Inter', system-ui, sans-serif",
       },
       grid: {
-        vertLines: { color: borderColor },
-        horzLines: { color: borderColor },
+        vertLines: { color: CHART_GRID },
+        horzLines: { color: CHART_GRID },
       },
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: borderColor, width: 1, style: 2, labelBackgroundColor: accentColor },
-        horzLine: { color: borderColor, width: 1, style: 2, labelBackgroundColor: accentColor },
+        vertLine: { color: CHART_BORDER, width: 1, style: 2, labelBackgroundColor: PRIMARY },
+        horzLine: { color: CHART_BORDER, width: 1, style: 2, labelBackgroundColor: PRIMARY },
       },
       rightPriceScale: {
-        borderColor: borderColor,
+        borderColor: CHART_BORDER,
         scaleMargins: { top: 0.1, bottom: 0.1 },
       },
       timeScale: {
-        borderColor: borderColor,
+        borderColor: CHART_BORDER,
         timeVisible: false,
         rightOffset: 5,
         // Low floor so fitContent can fit deep history: the spot series is
         // resampled to a daily grid, so ALL on a 10-year instance is ~3,600
-        // bars — at the old floor of 2px that capped the window at ~2 years.
+        // bars; the old floor of 2px capped the window at ~2 years.
         minBarSpacing: 0.05,
       },
       handleScroll: { vertTouchDrag: false },
@@ -139,14 +146,14 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
       for (let i = 0; i < entries.length; i++) {
         const [cls, points] = entries[i]
         if (!points || points.length === 0) continue
-        const color = S3_COLORS[cls] || '#9ca3af'
+        const color = S3_COLORS[cls] || OTHER
         const priceFormat = { type: 'price', precision: 3, minMove: 0.001 }
 
         if (chartType === 'area' && entries.length === 1) {
           chart.addSeries(AreaSeries, {
             lineColor: color,
-            topColor: color.replace(')', ', 0.3)').replace('rgb', 'rgba'),
-            bottomColor: 'transparent',
+            topColor: tint(color, 0.12),
+            bottomColor: tint(color, 0.01),
             lineWidth: 2,
             priceLineVisible: false,
             lastValueVisible: true,
@@ -156,7 +163,7 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
         } else {
           chart.addSeries(LineSeries, {
             color,
-            lineWidth: 2,
+            lineWidth: lineWidthFor(color),
             priceLineVisible: false,
             lastValueVisible: true,
             title: cls,
@@ -170,7 +177,7 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
           priceFormat: { type: 'price', precision: 3, minMove: 0.001 } }
 
         if (!hiddenS3Classes.has('azure'))
-        for (const [label, price] of Object.entries(storageComparison.azure || {})) {
+        for (const price of Object.values(storageComparison.azure || {})) {
           const s = chart.addSeries(LineSeries, { ...refOpts, color: AZURE_COLOR, title: '' })
           // Create a flat line using the first and last dates from S3 data
           const allDates = Object.values(s3Data).flat().map(d => d.time).sort()
@@ -183,7 +190,7 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
         }
 
         if (!hiddenS3Classes.has('gcp'))
-        for (const [label, price] of Object.entries(storageComparison.gcp || {})) {
+        for (const price of Object.values(storageComparison.gcp || {})) {
           const s = chart.addSeries(LineSeries, { ...refOpts, color: GCP_COLOR, title: '' })
           const allDates = Object.values(s3Data).flat().map(d => d.time).sort()
           if (allDates.length >= 2) {
@@ -210,12 +217,13 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
     if (isLambda && lambdaData && Object.keys(lambdaData).length > 0) {
       for (const [cat, points] of Object.entries(lambdaData)) {
         if (!points || points.length === 0) continue
+        const color = LAMBDA_COLORS[cat] || OTHER
         chart.addSeries(LineSeries, {
-          color: LAMBDA_COLORS[cat] || '#9ca3af',
-          lineWidth: 2,
+          color,
+          lineWidth: lineWidthFor(color),
           priceLineVisible: false,
           lastValueVisible: true,
-          title: cat,
+          title: seriesLabel(cat),
           priceFormat: { type: 'price', precision: 10, minMove: 0.0000000001 },
         }).setData(points)
       }
@@ -231,9 +239,10 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
     if (isRDS && rdsData && Object.keys(rdsData).length > 0) {
       for (const [engine, points] of Object.entries(rdsData)) {
         if (!points || points.length === 0) continue
+        const color = RDS_COLORS[engine] || OTHER
         chart.addSeries(LineSeries, {
-          color: RDS_COLORS[engine] || '#9ca3af',
-          lineWidth: 2,
+          color,
+          lineWidth: lineWidthFor(color),
           priceLineVisible: false,
           lastValueVisible: true,
           title: engine,
@@ -252,9 +261,10 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
       chart.applyOptions({ rightPriceScale: { minMove: 0.001 } })
       for (const [volType, points] of Object.entries(ebsData)) {
         if (!points || points.length === 0) continue
+        const color = EBS_COLORS[volType] || OTHER
         chart.addSeries(LineSeries, {
-          color: EBS_COLORS[volType] || '#9ca3af',
-          lineWidth: 2,
+          color,
+          lineWidth: lineWidthFor(color),
           priceLineVisible: false,
           lastValueVisible: true,
           title: volType,
@@ -274,12 +284,13 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
       chart.applyOptions({ rightPriceScale: { minMove: 0.001 } })
       for (const [txType, points] of Object.entries(transferData)) {
         if (!points || points.length === 0) continue
+        const color = TRANSFER_COLORS[txType] || OTHER
         chart.addSeries(LineSeries, {
-          color: TRANSFER_COLORS[txType] || '#9ca3af',
-          lineWidth: 2,
+          color,
+          lineWidth: lineWidthFor(color),
           priceLineVisible: false,
           lastValueVisible: true,
-          title: txType,
+          title: seriesLabel(txType),
           priceFormat: { type: 'price', precision: 3, minMove: 0.001 },
         }).setData(points)
       }
@@ -300,39 +311,40 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
     let mainSeries
     if (chartType === 'area') {
       mainSeries = chart.addSeries(AreaSeries, {
-        lineColor: '#2563eb',
-        topColor: 'rgba(37, 99, 235, 0.3)',
-        bottomColor: 'rgba(37, 99, 235, 0.02)',
+        lineColor: PRIMARY,
+        topColor: tint(PRIMARY, 0.12),
+        bottomColor: tint(PRIMARY, 0.01),
         lineWidth: 2,
-        title: 'Spot Price',
+        title: 'Spot price',
       })
     } else {
-      mainSeries = chart.addSeries(LineSeries, { color: '#2563eb', lineWidth: 2, title: 'Spot Price' })
+      mainSeries = chart.addSeries(LineSeries, { color: PRIMARY, lineWidth: 2, title: 'Spot price' })
     }
     mainSeries.setData(chartData)
 
     // Indicators
     if (activeIndicators.size > 0) {
-      // Indicators only make sense on the dense native series — skip the sparse
+      // Indicators only make sense on the dense native series: skip the sparse
       // pre-2024 monthly tail that may be prepended for daily/weekly views.
       const realData = data
         .filter(d => !denseFrom || d.date >= denseFrom)
         .map(d => ({ time: d.date, value: d.avg }))
 
       const smaConfigs = [
-        { key: 'sma7', period: 7 },
-        { key: 'sma30', period: 30 },
-        { key: 'sma90', period: 90 },
+        { key: 'sma7', period: 7, title: 'SMA 7' },
+        { key: 'sma30', period: 30, title: 'SMA 30' },
+        { key: 'sma90', period: 90, title: 'SMA 90' },
       ]
 
       for (const cfg of smaConfigs) {
         if (activeIndicators.has(cfg.key)) {
           const s = chart.addSeries(LineSeries, {
-            color: INDICATOR_COLORS[cfg.key],
+            color: EC2_COLORS[cfg.key],
             lineWidth: 1,
             lineStyle: 2,
             priceLineVisible: false,
-            lastValueVisible: false,
+            lastValueVisible: true,
+            title: cfg.title,
           })
           s.setData(calcSMA(realData, cfg.period))
         }
@@ -340,29 +352,29 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
 
       if (activeIndicators.has('bb')) {
         const bb = calcBollinger(realData, 20, 2)
-        const bbOpts = { color: 'rgba(139, 92, 246, 0.5)', lineWidth: 1, priceLineVisible: false, lastValueVisible: false }
+        const bbOpts = { color: EC2_COLORS.bollinger, lineWidth: 1, priceLineVisible: false, lastValueVisible: false }
         chart.addSeries(LineSeries, bbOpts).setData(bb.upper)
         chart.addSeries(LineSeries, bbOpts).setData(bb.lower)
         chart.addSeries(LineSeries, { ...bbOpts, lineStyle: 2 }).setData(bb.mid)
       }
     }
 
-    // Reference price lines (on-demand, RI) — consistent dashed weight so the
+    // Reference price lines (on-demand, RI): consistent dashed weight so the
     // 1yr/3yr RI lines read as clearly as On-Demand at any resolution.
     const refLineOpts = { lineWidth: 2, lineStyle: 2, priceLineVisible: false, lastValueVisible: true }
 
     if (Array.isArray(onDemandData) && onDemandData.length > 0) {
-      chart.addSeries(LineSeries, { ...refLineOpts, color: '#ef4444', title: 'On-Demand' })
+      chart.addSeries(LineSeries, { ...refLineOpts, color: EC2_COLORS.onDemand, title: 'On-demand' })
         .setData(onDemandData)
     }
 
     if (riData && Array.isArray(riData.ri1yNoUpfront) && riData.ri1yNoUpfront.length > 0) {
-      chart.addSeries(LineSeries, { ...refLineOpts, color: '#f59e0b', title: '1yr RI' })
+      chart.addSeries(LineSeries, { ...refLineOpts, color: EC2_COLORS.ri1y, title: '1-year RI' })
         .setData(riData.ri1yNoUpfront)
     }
 
     if (riData && Array.isArray(riData.ri3yNoUpfront) && riData.ri3yNoUpfront.length > 0) {
-      chart.addSeries(LineSeries, { ...refLineOpts, color: '#10b981', title: '3yr RI' })
+      chart.addSeries(LineSeries, { ...refLineOpts, color: EC2_COLORS.ri3y, title: '3-year RI' })
         .setData(riData.ri3yNoUpfront)
     }
 
@@ -390,9 +402,9 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
       chart.remove()
       chartRef.current = null
     }
-  }, [data, s3Data, lambdaData, rdsData, ebsData, transferData, isS3, isLambda, isRDS, isEBS, isTransfer, chartType, activeIndicators, granularity, denseFrom, theme, onDemandData, riData, hiddenS3Classes])  // eslint-disable-line react-hooks/exhaustive-deps -- visibleRange applied in its own effect
+  }, [data, s3Data, lambdaData, rdsData, ebsData, transferData, isS3, isLambda, isRDS, isEBS, isTransfer, chartType, activeIndicators, granularity, denseFrom, onDemandData, riData, hiddenS3Classes])  // eslint-disable-line react-hooks/exhaustive-deps -- visibleRange applied in its own effect
 
-  // Range-preset changes only move the viewport — no need to rebuild the chart.
+  // Range-preset changes only move the viewport; no need to rebuild the chart.
   useEffect(() => {
     const chart = chartRef.current
     if (!chart || !data || data.length === 0) return
@@ -407,13 +419,13 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
   return (
     <div className="chart-area">
       <div className="y-axis-label">
-        {isS3 || isEBS ? 'Price (USD / GB / mo)' : isTransfer ? 'Price (USD / GB)' : isLambda ? 'Price (USD)' : 'Price (USD / hr)'}
+        {isS3 || isEBS ? 'Price (USD per GB-month)' : isTransfer ? 'Price (USD per GB)' : isLambda ? 'Price (USD)' : 'Hourly rate (USD)'}
       </div>
       {instance && (
         <div className="chart-title">
-          <span className="instance-name">{isS3 ? 'S3 Storage' : isLambda ? 'Lambda' : isRDS ? instance : isEBS ? 'EBS Block Storage' : isTransfer ? 'Data Transfer' : instance}</span>
-          {' '}&mdash; {region} &mdash;{' '}
-          {isS3 ? 'Price per GB per Month' : isLambda ? 'Serverless Pricing' : isRDS ? 'RDS Hourly Rate (USD)' : isEBS ? 'Storage per GB per Month' : isTransfer ? 'Egress & Transfer per GB' : 'EC2 Hourly Rate (USD)'}
+          <span className="instance-name">{isS3 ? 'S3 storage' : isLambda ? 'Lambda' : isRDS ? instance : isEBS ? 'EBS block storage' : isTransfer ? 'Data transfer' : instance}</span>
+          {' · '}{region}{' · '}
+          {isS3 ? 'Price per GB per month' : isLambda ? 'Serverless pricing' : isRDS ? 'RDS hourly rate (USD)' : isEBS ? 'Storage per GB per month' : isTransfer ? 'Egress and transfer per GB' : 'Hourly rate (USD)'}
         </div>
       )}
       {isS3 && s3Data && (
@@ -423,7 +435,7 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
             onClick={() => toggleS3Class('aws')}
           >
             <div className="s3-legend-checkbox">
-              <div className="s3-legend-checkbox-inner" style={{ backgroundColor: '#f59e0b' }} />
+              <div className="s3-legend-checkbox-inner" style={{ backgroundColor: PRIMARY }} />
             </div>
             AWS S3
           </div>
@@ -454,7 +466,7 @@ export default function Chart({ data, s3Data, lambdaData, rdsData, ebsData, tran
       <div className="chart-container" ref={containerRef} />
       {(!data || data.length === 0) && !isS3 && !isLambda && !isRDS && !isEBS && !isTransfer && (
         <div className="no-data-msg">
-          {instance ? 'No data for this instance type in the selected time range' : 'Select an instance type'}
+          {instance ? 'No data for this instance type in the selected time range.' : 'Select an instance type.'}
         </div>
       )}
     </div>

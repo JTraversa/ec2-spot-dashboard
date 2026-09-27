@@ -1,13 +1,13 @@
 import { exportCSV, exportJSON } from '../utils/export'
 
-// Range (visible window) and resolution (bar size) are independent controls —
+// Range (visible window) and resolution (bar size) are independent controls:
 // the chart loads the full per-instance history, so any combination is valid.
 const RANGES = [
   { label: '1W', range: 7 },
   { label: '1M', range: 30 },
   { label: '3M', range: 90 },
   { label: '1Y', range: 365 },
-  { label: 'ALL', range: 'all' },
+  { label: 'All', range: 'all' },
 ]
 
 const RESOLUTIONS = [
@@ -86,7 +86,7 @@ export default function Controls({
       </div>
 
       <div className="control-group">
-        <label>Chart Type</label>
+        <label>Chart type</label>
         <div className="btn-group">
           {['line', 'area'].map(t => (
             <button key={t} className={chartType === t ? 'active' : ''} onClick={() => setChartType(t)}>
@@ -97,7 +97,7 @@ export default function Controls({
       </div>
 
       <div className="control-group">
-        <label>Time Range</label>
+        <label>Time range</label>
         <div className="btn-group">
           {RANGES.map(r => (
             <button

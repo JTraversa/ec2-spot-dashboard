@@ -1,16 +1,55 @@
-# React + Vite
+# corpusAI Cloud Pricing: charts
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The free, interactive charts of [corpusAI Cloud Pricing](https://cloud.trycorpus.ai/), served at
+[cloud.trycorpus.ai/charts](https://cloud.trycorpus.ai/charts) and
+[cloud.trycorpus.ai/gpu.html](https://cloud.trycorpus.ai/gpu.html).
 
-Currently, two official plugins are available:
+A React and Vite single-page app with no backend: it reads static JSON from `public/data/`, which a
+daily job refreshes, and draws it with [lightweight-charts](https://github.com/tradingview/lightweight-charts).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## What it shows
 
-## React Compiler
+- **Spot prices** for AWS EC2 (Linux/UNIX), Google Cloud Spot VMs and Azure Spot VMs, per instance
+  type and region. AWS history reaches back to 2014.
+- **AWS list prices** beside spot: on-demand and 1-year and 3-year reserved instances, plus S3,
+  EBS, Lambda, RDS and data transfer price histories.
+- **GPU rental prices** (`gpu.html`): the daily median USD per GPU-hour per provider across
+  neo-clouds, marketplaces and hyperscaler spot, with today's cheapest quotes.
+- Moving averages, Bollinger bands, and CSV or JSON export of the series on screen.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Data tiers
 
-## Expanding the ESLint configuration
+The data in this repo is the public tier. Every row is one average price per period: daily
+averages for the last 90 days, weekly averages for the last year, and monthly averages before that.
+No intraday values, per-zone series or raw price-change events are published here.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Full precision (every price-change event with its zone and timestamp, hourly bars, complete daily
+history, GPU index fixings, capacity stress and LLM token prices) is available from the
+corpusAI Cloud Pricing API. No account needed: pay per call over x402 or MPP, or use a prepaid key.
+See the [API docs](https://cloud.trycorpus.ai/docs) and the
+[methodology](https://cloud.trycorpus.ai/methodology).
+
+Sources and their date ranges are cited on the charts page. The data is covered by the
+[corpusAI data license](https://cloud.trycorpus.ai/license).
+
+## Run it
+
+Requires Node.js 20.19+ or 22.12+ (what Vite 8 supports).
+
+```bash
+npm install
+npm run dev       # dev server at http://localhost:5173/cloud-pricing/
+npm run build     # production build into dist/
+npm run preview   # serve the build
+npm run lint
+```
+
+The default base path is `/cloud-pricing/`. cloud.trycorpus.ai builds at the root with
+`BASE_PATH=/ npm run build`.
+
+## License
+
+The code is released under the [Business Source License 1.1](LICENSE). The data in
+`public/data/` is covered by the [corpusAI data license](https://cloud.trycorpus.ai/license).
+
+Questions: [hello@trycorpus.ai](mailto:hello@trycorpus.ai).

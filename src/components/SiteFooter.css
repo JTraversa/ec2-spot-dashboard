@@ -1,0 +1,14 @@
+/* Shared corpusAI Cloud Pricing footer. Tokens come from src/tokens.css. */
+.site-footer { width: 100%; max-width: 1400px; margin: 24px auto 0; padding: 20px 20px 28px; border-top: 1px solid var(--rule); color: var(--faint); font-size: 12.5px; }
+.site-footer-in { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px 40px; }
+.site-footer-mark { display: inline-flex; align-items: center; gap: 8px; font-family: var(--display); font-weight: 600; font-size: 15px; letter-spacing: -0.02em; color: var(--ink); text-decoration: none; }
+.site-footer-mark svg { display: block; }
+.site-footer-mark em { font-style: normal; color: var(--muted); font-weight: 500; }
+.site-footer-brand p { margin: 6px 0 0; color: var(--faint); }
+.site-footer-links { display: flex; flex-wrap: wrap; gap: 8px 18px; max-width: 760px; }
+.site-footer-links a { color: var(--muted); }
+.site-footer-links a:hover { color: var(--ink); }
+.site-footer-bottom { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-top: 18px; }
+@media (max-width: 720px) {
+  .site-footer { padding: 18px 16px 24px; }
+}

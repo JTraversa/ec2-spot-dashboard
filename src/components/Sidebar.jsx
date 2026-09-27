@@ -1,25 +1,25 @@
 const EC2_CATEGORIES = {
-  'General Purpose': /^(m[1-7]|t[1-4])\./,
-  'Compute Optimized': /^c[1-7]\./,
-  'Memory Optimized': /^(r[3-7]|m2\.)/,
-  'GPU / Accelerated': /^(g[2-5]|p[2-4])\./,
-  'Storage Optimized': /^i[2-4]\./,
+  'General purpose': /^(m[1-7]|t[1-4])\./,
+  'Compute optimized': /^c[1-7]\./,
+  'Memory optimized': /^(r[3-7]|m2\.)/,
+  'GPU and accelerated': /^(g[2-5]|p[2-4])\./,
+  'Storage optimized': /^i[2-4]\./,
 }
 
 const GCP_CATEGORIES = {
-  'General Purpose': /^(n[0-9]|e2|t2[ad]|f1|g1)-/,
-  'Compute Optimized': /^(c[0-9]|h[0-9])-/,
-  'Memory Optimized': /^m[0-9]-/,
-  'GPU / Accelerated': /^(a[0-9]|g2)-/,
-  'Storage Optimized': /^z[0-9]-/,
+  'General purpose': /^(n[0-9]|e2|t2[ad]|f1|g1)-/,
+  'Compute optimized': /^(c[0-9]|h[0-9])-/,
+  'Memory optimized': /^m[0-9]-/,
+  'GPU and accelerated': /^(a[0-9]|g2)-/,
+  'Storage optimized': /^z[0-9]-/,
 }
 
 const AZURE_CATEGORIES = {
-  'General Purpose': /^D/,
-  'Compute Optimized': /^F/,
-  'Memory Optimized': /^E/,
-  'Storage Optimized': /^L/,
-  'GPU / Accelerated': /^N/,
+  'General purpose': /^D/,
+  'Compute optimized': /^F/,
+  'Memory optimized': /^E/,
+  'Storage optimized': /^L/,
+  'GPU and accelerated': /^N/,
 }
 
 function groupInstances(instances, categories) {
@@ -62,7 +62,7 @@ export default function Sidebar({ provider = 'aws', instances, allInstances = []
       <div className="sidebar-search">
         <input
           type="text"
-          placeholder="Filter instances..."
+          placeholder="Filter instances…"
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
@@ -77,7 +77,7 @@ export default function Sidebar({ provider = 'aws', instances, allInstances = []
               onClick={() => onSelect(item.t)}
             >
               <span>{item.t}</span>
-              <span className="price">${item.p != null ? item.p.toFixed(4) : '—'}</span>
+              <span className="price">{item.p != null ? `$${item.p.toFixed(4)}` : 'n/a'}</span>
             </div>
           ))}
         </div>
@@ -93,7 +93,7 @@ export default function Sidebar({ provider = 'aws', instances, allInstances = []
               onClick={() => onSelect('rds:' + item.t)}
             >
               <span>{item.t}</span>
-              <span className="price">${item.p != null ? item.p.toFixed(4) : '—'}</span>
+              <span className="price">{item.p != null ? `$${item.p.toFixed(4)}` : 'n/a'}</span>
             </div>
           ))}
         </div>
@@ -107,7 +107,7 @@ export default function Sidebar({ provider = 'aws', instances, allInstances = []
               className={`instance-item ${currentInstance === 's3:all' ? 'selected' : ''}`}
               onClick={() => onSelect('s3:all')}
             >
-              <span>S3 Object Storage</span>
+              <span>S3 object storage</span>
             </div>
           )}
           {hasEBS && (
@@ -115,7 +115,7 @@ export default function Sidebar({ provider = 'aws', instances, allInstances = []
               className={`instance-item ${currentInstance === 'ebs:all' ? 'selected' : ''}`}
               onClick={() => onSelect('ebs:all')}
             >
-              <span>EBS Block Storage</span>
+              <span>EBS block storage</span>
             </div>
           )}
         </div>
@@ -140,7 +140,7 @@ export default function Sidebar({ provider = 'aws', instances, allInstances = []
             className={`instance-item ${currentInstance === 'transfer:all' ? 'selected' : ''}`}
             onClick={() => onSelect('transfer:all')}
           >
-            <span>Data Transfer</span>
+            <span>Data transfer</span>
           </div>
         </div>
       )}

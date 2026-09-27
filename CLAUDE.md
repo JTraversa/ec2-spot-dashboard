@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 > A workspace-level `CLAUDE.md` one directory up describes all the sibling dashboards generically. This file covers what is specific to `ec2-spot-dashboard`.
 
+> **Production is now cloud.trycorpus.ai, built at base `/` (2026-09).** The private `../cloud-pricing-data` Dockerfile downloads this repo at `DASH_REF` (its `collect.yml` and `neo.yml` workflows pass this repo's HEAD when they deploy the API to Fly), runs `BASE_PATH=/ npm run build`, and the API serves `dist/` at the root: `/charts` is `index.html`, `/gpu.html` is the GPU charts page, data stays at `/data/...`. A push here goes live with the next scheduled API deploy, not on its own. The `/cloud-pricing/` base, `vercel.json` and every "redeploy (Vercel)" note below describe the legacy Vercel deployment only (`vite.config.js` falls back to `/cloud-pricing/` when `BASE_PATH` is unset). Branding, copy and colors follow `../corpus-website/docs/design-system.md`: the product is corpusAI Cloud Pricing, light theme only, no em-dashes, chart colors from `src/charts/palette.js`.
+
 ## Commands
 
 ```bash
